@@ -1,9 +1,6 @@
-.env
+node_modules/
 venv/
 __pycache__/
-*.pyc
+.env
 .DS_Store
-extracted_images/
-test_extracted_images/
-*.pdf
-chroma_db_storage/
+*.pyc
