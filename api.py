@@ -12,11 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-# Backend imports
-from ingestion_pipeline import process_document
-from graph_builder import build_graph_and_index
-from retriever import retrieve_context
-from qa_generator import generate_answer, generate_document_summary
+# Backend imports lazily loaded in endpoints to prevent port bind timeout on Render
 from database import get_documents_collection, get_chat_history_collection, get_users_collection
 from datetime import datetime
 
@@ -95,6 +91,10 @@ def login(request: AuthRequest):
 
 @app.post("/api/upload")
 async def upload_document(file: UploadFile = File(...)):
+    from ingestion_pipeline import process_document
+    from graph_builder import build_graph_and_index
+    from qa_generator import generate_document_summary
+    
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
             tmp.write(await file.read())
@@ -225,6 +225,9 @@ def get_graph():
 
 @app.post("/api/chat")
 def chat_endpoint(request: QueryRequest):
+    from retriever import retrieve_context
+    from qa_generator import generate_answer
+    
     doc_id = GLOBAL_STATE["active_doc_id"]
     if not doc_id or doc_id not in GLOBAL_STATE["documents"]:
         raise HTTPException(status_code=400, detail="No active document found.")
