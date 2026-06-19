@@ -1,14 +1,25 @@
 {
-  "buildCommand": "cd Mutli-Modal-Context-Aware-RAG/frontend && npm install && npm run build",
-  "outputDirectory": "Mutli-Modal-Context-Aware-RAG/frontend/dist",
-  "rewrites": [
+  "builds": [
     {
-      "source": "/api/:match*",
-      "destination": "/api/index.py"
+      "src": "api/index.py",
+      "use": "@vercel/python"
     },
     {
-      "source": "/(.*)",
-      "destination": "/Mutli-Modal-Context-Aware-RAG/frontend/dist/$1"
+      "src": "Mutli-Modal-Context-Aware-RAG/frontend/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/index.py"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/Mutli-Modal-Context-Aware-RAG/frontend/dist/$1"
     }
   ]
 }
