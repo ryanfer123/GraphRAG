@@ -42,10 +42,14 @@ def get_vlm_models() -> Tuple[Any, Any]:
     """
     global _vlm_model, _vlm_processor
     if _vlm_model is None or _vlm_processor is None:
-        from mlx_vlm import load
-        model_id = "mlx-community/Qwen2-VL-2B-Instruct-4Bit"
-        print(f"Loading local MLX VLM: {model_id}")
-        _vlm_model, _vlm_processor = load(model_id)
+        try:
+            from mlx_vlm import load
+            model_id = "mlx-community/Qwen2-VL-2B-Instruct-4Bit"
+            print(f"Loading local MLX VLM: {model_id}")
+            _vlm_model, _vlm_processor = load(model_id)
+        except ImportError:
+            print("mlx_vlm is not installed (likely on Linux/Render). Skipping local VLM loading.")
+            _vlm_model, _vlm_processor = None, None
 
     return _vlm_model, _vlm_processor
 
@@ -62,6 +66,9 @@ def generate_image_description(image_path: str) -> str:
     """
     model, processor = get_vlm_models()
     
+    if model is None:
+        return "Image description skipped (VLM not available on this server)."
+
     try:
         import tempfile
         from PIL import Image

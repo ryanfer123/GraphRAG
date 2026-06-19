@@ -83,11 +83,6 @@ matplotlib-inline==0.2.2
 mdurl==0.1.2
 miniaudio==1.71
 ml_dtypes==0.5.4
-mlx==0.31.2
-mlx-audio==0.4.4
-mlx-lm==0.31.3
-mlx-metal==0.31.2
-mlx-vlm==0.6.3
 mmh3==5.2.1
 mpmath==1.3.0
 multidict==6.7.1
