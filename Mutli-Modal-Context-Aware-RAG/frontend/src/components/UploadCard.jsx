@@ -62,11 +62,11 @@ export default function UploadCard({ onUploadSuccess }) {
         onDrop={handleDrop}
       >
         <UploadCloud size={22} className="upload-icon" />
-        <p className="upload-text">Drop PDF files here</p>
+        <p className="upload-text">Drop PDF or DOCX files here</p>
         <p className="upload-subtext">or click to browse</p>
         <input
           type="file"
-          accept=".pdf"
+          accept=".pdf,.docx"
           onChange={handleSelect}
           hidden
         />

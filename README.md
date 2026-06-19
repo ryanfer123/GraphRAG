@@ -85,6 +85,6 @@ The frontend is a Vite-powered React application with interactive ReactFlow grap
 
 ## 🛠️ Usage
 1. **Sign Up / Login:** Create an account on the local dashboard.
-2. **Upload a Document:** Navigate to the Dashboard and upload a PDF. The backend will parse the text, tables, and images, embed them into ChromaDB, and build a NetworkX knowledge graph.
+2. **Upload a Document:** Navigate to the Dashboard and upload a PDF or DOCX. The backend will parse the text, tables, and images, embed them into ChromaDB, and build a NetworkX knowledge graph.
 3. **Explore the Graph:** Click on the generated nodes in the right-hand panel to see semantic relationships and entity extraction.
 4. **Chat:** Ask questions about the document. The system will retrieve the most relevant semantic chunks and graph edges, and the LLM will generate an answer with inline citations (e.g., `(Fig. 1)` or `(Page 3)`).

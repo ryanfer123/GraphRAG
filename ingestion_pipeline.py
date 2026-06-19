@@ -1,7 +1,7 @@
 """
 ingestion_pipeline.py
 
-Processes a raw PDF document and converts it into a list of Pydantic objects
+Processes a raw PDF or DOCX document and converts it into a list of Pydantic objects
 (TextElement, TableElement, ImageElement) using the `unstructured` library.
 """
 import os
@@ -9,7 +9,7 @@ import uuid
 import logging
 from typing import List, Tuple, Any
 
-from unstructured.partition.pdf import partition_pdf
+from unstructured.partition.auto import partition
 
 from data_models import (
     BaseDocumentElement,
@@ -42,10 +42,10 @@ def _extract_bounding_box(element: Any) -> Tuple[float, float, float, float]:
 
 def process_document(file_path: str) -> List[BaseDocumentElement]:
     """
-    Processes a PDF document and extracts Text, Table, and Image elements.
+    Processes a PDF or DOCX document and extracts Text, Table, and Image elements.
     
     Args:
-        file_path (str): The path to the PDF document.
+        file_path (str): The path to the PDF or DOCX document.
         
     Returns:
         List[BaseDocumentElement]: A list of extracted elements as Pydantic objects.
@@ -59,17 +59,22 @@ def process_document(file_path: str) -> List[BaseDocumentElement]:
     os.makedirs(image_output_dir, exist_ok=True)
     
     try:
-        # Partition the PDF using unstructured with high-res strategy to get tables and images
-        elements = partition_pdf(
-            filename=file_path,
-            extract_images_in_pdf=True,
-            extract_image_block_types=["Image"],
-            extract_image_block_output_dir=image_output_dir,
-            infer_table_structure=True,
-            strategy="hi_res"
-        )
+        # Partition the document using unstructured with high-res strategy
+        kwargs = {
+            "filename": file_path,
+            "extract_image_block_types": ["Image"],
+            "extract_image_block_output_dir": image_output_dir,
+            "infer_table_structure": True,
+            "strategy": "hi_res"
+        }
+        
+        # Only pass PDF-specific args if it's actually a PDF
+        if file_path.lower().endswith(".pdf"):
+            kwargs["extract_images_in_pdf"] = True
+            
+        elements = partition(**kwargs)
     except Exception as e:
-        logger.error(f"Failed to partition PDF {file_path}: {e}")
+        logger.error(f"Failed to partition document {file_path}: {e}")
         return []
 
     for el in elements:

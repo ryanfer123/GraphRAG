@@ -97,7 +97,11 @@ async def upload_document(file: UploadFile = File(...)):
     from qa_generator import generate_document_summary
     
     try:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        ext = os.path.splitext(file.filename)[1].lower()
+        if ext not in ['.pdf', '.docx']:
+            ext = '.pdf'
+            
+        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
             tmp.write(await file.read())
             tmp_path = tmp.name
 
