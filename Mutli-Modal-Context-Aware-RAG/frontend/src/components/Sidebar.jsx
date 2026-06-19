@@ -23,6 +23,9 @@ const NAV_ITEMS = [
 export default function Sidebar({ active, setActive }) {
   const [documents, setDocuments] = useState([])
 
+  const [sessions, setSessions] = useState([])
+  const [activeSessionId, setActiveSessionId] = useState(null)
+
   const fetchStatus = async () => {
     try {
       const res = await axios.get('/api/status')
@@ -32,10 +35,25 @@ export default function Sidebar({ active, setActive }) {
     }
   }
 
+  const fetchSessions = async () => {
+    try {
+      const res = await axios.get('/api/chat/sessions')
+      setSessions(res.data.sessions || [])
+      setActiveSessionId(res.data.active_session_id)
+    } catch (err) {
+      console.error("Failed to fetch sessions", err)
+    }
+  }
+
   useEffect(() => {
     fetchStatus()
-    window.addEventListener('graph-updated', fetchStatus)
-    return () => window.removeEventListener('graph-updated', fetchStatus)
+    fetchSessions()
+    const handleGraphUpdated = () => {
+      fetchStatus()
+      fetchSessions()
+    }
+    window.addEventListener('graph-updated', handleGraphUpdated)
+    return () => window.removeEventListener('graph-updated', handleGraphUpdated)
   }, [])
 
   const handleSwitch = async (docId, status) => {
@@ -65,12 +83,24 @@ export default function Sidebar({ active, setActive }) {
   }
 
   const handleNewChat = async () => {
-    if (!confirm("Are you sure you want to clear the current chat history?")) return;
     try {
-      await axios.delete('/api/chat/history');
+      await axios.post('/api/chat/session/new');
+      fetchSessions();
       window.dispatchEvent(new Event('chat-cleared'));
+      window.dispatchEvent(new Event('graph-updated'));
     } catch (err) {
-      alert("Failed to clear chat: " + (err.response?.data?.detail || err.message));
+      alert("Failed to start new chat: " + (err.response?.data?.detail || err.message));
+    }
+  }
+
+  const handleSwitchSession = async (sessionId) => {
+    try {
+      await axios.post('/api/chat/session/switch', { session_id: sessionId });
+      fetchSessions();
+      window.dispatchEvent(new Event('chat-cleared'));
+      window.dispatchEvent(new Event('graph-updated'));
+    } catch (err) {
+      alert("Failed to switch session: " + (err.response?.data?.detail || err.message));
     }
   }
 
@@ -131,7 +161,19 @@ export default function Sidebar({ active, setActive }) {
             <button className="new-chat-btn" onClick={handleNewChat}>
               <PlusCircle size={14} /> New Chat
             </button>
-            <div className="history-row is-active" style={{marginTop: '8px'}}>Current Session</div>
+            {sessions.map((session, index) => (
+              <div 
+                key={session.id}
+                className={`history-row ${session.id === activeSessionId ? 'is-active' : ''}`}
+                onClick={() => handleSwitchSession(session.id)}
+                style={{ cursor: 'pointer', marginTop: index === 0 ? '8px' : '4px' }}
+              >
+                {new Date(session.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+              </div>
+            ))}
+            {sessions.length === 0 && (
+              <div className="sidebar-hint" style={{margin: '0.5rem 1rem'}}>No sessions yet. Send a message to start!</div>
+            )}
             <div className="sidebar-hint" style={{margin: '0.5rem 1rem'}}>Chat history persists per session.</div>
           </div>
         )}

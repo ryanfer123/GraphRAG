@@ -30,7 +30,8 @@ app.add_middleware(
 # Global State
 GLOBAL_STATE = {
     "active_doc_id": None,
-    "documents": {}
+    "documents": {},
+    "sessions": {}
 }
 
 class QueryRequest(BaseModel):
@@ -263,17 +264,24 @@ def chat_endpoint(request: QueryRequest):
                     "content": content
                 })
 
+        session_id = GLOBAL_STATE["sessions"].get(doc_id)
+        if not session_id:
+            session_id = str(uuid.uuid4())
+            GLOBAL_STATE["sessions"][doc_id] = session_id
+
         chat_col = get_chat_history_collection()
         if chat_col is not None:
             chat_col.insert_many([
                 {
                     "doc_id": doc_id,
+                    "session_id": session_id,
                     "role": "user",
                     "content": request.query,
                     "timestamp": datetime.utcnow()
                 },
                 {
                     "doc_id": doc_id,
+                    "session_id": session_id,
                     "role": "assistant",
                     "content": result.get("answer", ""),
                     "citations": citations,
@@ -353,8 +361,11 @@ def get_chat_history():
     if chat_col is None:
         return {"history": []}
         
-    # Find all messages for the current document, sorted by timestamp
-    cursor = chat_col.find({"doc_id": doc_id}).sort("timestamp", 1)
+    session_id = GLOBAL_STATE["sessions"].get(doc_id)
+    if not session_id:
+        return {"history": []}
+
+    cursor = chat_col.find({"doc_id": doc_id, "session_id": session_id}).sort("timestamp", 1)
     history = []
     for msg in cursor:
         msg["_id"] = str(msg["_id"])
@@ -363,17 +374,59 @@ def get_chat_history():
         
     return {"history": history}
 
-@app.delete("/api/chat/history")
-def clear_chat_history():
+@app.get("/api/chat/sessions")
+def get_chat_sessions():
+    doc_id = GLOBAL_STATE["active_doc_id"]
+    if not doc_id:
+        return {"sessions": [], "active_session_id": None}
+        
+    chat_col = get_chat_history_collection()
+    if chat_col is None:
+        return {"sessions": [], "active_session_id": None}
+        
+    # Get unique session IDs and their first message timestamp
+    pipeline = [
+        {"$match": {"doc_id": doc_id}},
+        {"$group": {
+            "_id": "$session_id",
+            "created_at": {"$min": "$timestamp"}
+        }},
+        {"$sort": {"created_at": -1}}
+    ]
+    sessions = []
+    for session in chat_col.aggregate(pipeline):
+        if session["_id"]:
+            sessions.append({
+                "id": session["_id"],
+                "created_at": session["created_at"].isoformat()
+            })
+            
+    return {
+        "sessions": sessions,
+        "active_session_id": GLOBAL_STATE["sessions"].get(doc_id)
+    }
+
+class SessionSwitchRequest(BaseModel):
+    session_id: str
+
+@app.post("/api/chat/session/switch")
+def switch_session(req: SessionSwitchRequest):
     doc_id = GLOBAL_STATE["active_doc_id"]
     if not doc_id:
         raise HTTPException(status_code=400, detail="No active document found.")
         
-    chat_col = get_chat_history_collection()
-    if chat_col is not None:
-        chat_col.delete_many({"doc_id": doc_id})
+    GLOBAL_STATE["sessions"][doc_id] = req.session_id
+    return {"status": "success", "session_id": req.session_id}
+
+@app.post("/api/chat/session/new")
+def new_chat_session():
+    doc_id = GLOBAL_STATE["active_doc_id"]
+    if not doc_id:
+        raise HTTPException(status_code=400, detail="No active document found.")
         
-    return {"status": "success"}
+    session_id = str(uuid.uuid4())
+    GLOBAL_STATE["sessions"][doc_id] = session_id
+    return {"status": "success", "session_id": session_id}
 
 # Serve React Frontend
 frontend_dist = os.path.join(os.path.dirname(__file__), "Mutli-Modal-Context-Aware-RAG", "frontend", "dist")
