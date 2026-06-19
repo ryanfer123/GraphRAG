@@ -1,0 +1,149 @@
+.graph-panel {
+  width: 420px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+  position: relative;
+}
+
+.graph-panel.is-main-view {
+  width: auto;
+  flex: 1;
+}
+
+.graph-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 2px solid #000000;
+  background: #ffffff;
+}
+
+.graph-panel-title {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.graph-legend-inline {
+  display: flex;
+  gap: 10px;
+  font-size: 10.5px;
+  color: var(--text-dim);
+}
+
+.graph-legend-inline span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.graph-legend-inline i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+  border: 1px solid #000000;
+}
+
+.graph-canvas {
+  flex: 1;
+  position: relative;
+}
+
+.react-flow__attribution {
+  display: none;
+}
+
+.graph-node {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: var(--radius-sm);
+  border: 2px solid #000000;
+  background: #ffffff;
+  font-size: 11px;
+  color: #1e293b;
+  white-space: nowrap;
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  box-shadow: 3px 3px 0px #000000;
+  transition: box-shadow 0.1s, border-color 0.1s, transform 0.1s;
+}
+
+.graph-node:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0px #000000;
+}
+
+.graph-node-label {
+  color: #1e293b;
+}
+
+.graph-node-icon {
+  flex-shrink: 0;
+  color: #fdba74;
+}
+
+/* Normal state — black border, orange icon */
+.graph-node-normal {
+  border-color: #000000;
+}
+.graph-node-normal .graph-node-icon {
+  color: #fdba74;
+}
+
+/* Used in answer — amber border/shadow, darker amber icon */
+.graph-node-used {
+  border-color: #f59e0b;
+  box-shadow: 3px 3px 0px #f59e0b;
+  background: #fffbeb;
+}
+.graph-node-used .graph-node-icon {
+  color: #f59e0b;
+}
+
+/* Selected — indigo border/shadow for clear distinction */
+.graph-node-selected {
+  border-color: #6366f1;
+  box-shadow: 3px 3px 0px #6366f1;
+  background: #eef2ff;
+}
+.graph-node-selected .graph-node-icon {
+  color: #6366f1;
+}
+
+.react-flow__controls {
+  bottom: 12px;
+  left: 12px;
+}
+.react-flow__controls button {
+  background: #ffffff !important;
+  border: 2px solid #000000 !important;
+  color: var(--text) !important;
+  box-shadow: 2px 2px 0px #000000;
+  border-radius: var(--radius-sm) !important;
+  margin-bottom: 2px !important;
+}
+.react-flow__controls button:hover {
+  background: var(--surface-2) !important;
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0px #000000;
+}
+
+/* MiniMap — force visibility */
+.react-flow__minimap {
+  border-radius: var(--radius-sm);
+  overflow: visible;
+  border: 2px solid #000000;
+  box-shadow: 4px 4px 0px #000000;
+  background: #ffffff;
+}
+.react-flow__minimap svg {
+  display: block;
+}
