@@ -1,0 +1,14 @@
+{
+  "buildCommand": "cd Mutli-Modal-Context-Aware-RAG/frontend && npm install && npm run build",
+  "outputDirectory": "Mutli-Modal-Context-Aware-RAG/frontend/dist",
+  "rewrites": [
+    {
+      "source": "/api/:match*",
+      "destination": "/api/index.py"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/Mutli-Modal-Context-Aware-RAG/frontend/dist/$1"
+    }
+  ]
+}
