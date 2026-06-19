@@ -30,8 +30,8 @@ export default function Home() {
           A hybrid retrieval system that pairs vector search with a knowledge graph —
           so every answer traces back to a page, a table, or a figure you can inspect.
         </p>
-        <button className="home-cta" onClick={() => navigate('/dashboard')}>
-          Launch Dashboard <ArrowRight size={16} />
+        <button className="home-cta" onClick={() => navigate('/login')}>
+          Get Started <ArrowRight size={16} />
         </button>
 
         <div className="home-feature-row">

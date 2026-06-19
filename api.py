@@ -2,6 +2,8 @@ import os
 import tempfile
 import uuid
 import logging
+import hashlib
+import secrets
 from typing import Optional, List, Dict, Any
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
@@ -15,7 +17,7 @@ from ingestion_pipeline import process_document
 from graph_builder import build_graph_and_index
 from retriever import retrieve_context
 from qa_generator import generate_answer, generate_document_summary
-from database import get_documents_collection, get_chat_history_collection
+from database import get_documents_collection, get_chat_history_collection, get_users_collection
 from datetime import datetime
 
 app = FastAPI()
@@ -40,6 +42,56 @@ class QueryRequest(BaseModel):
 
 class SwitchRequest(BaseModel):
     doc_id: str
+
+class AuthRequest(BaseModel):
+    email: str
+    password: str
+
+def hash_password(password: str, salt: bytes = None) -> dict:
+    if salt is None:
+        salt = os.urandom(16)
+    pwdhash = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, 100000)
+    return {"salt": salt.hex(), "hash": pwdhash.hex()}
+
+def verify_password(password: str, salt_hex: str, hash_hex: str) -> bool:
+    salt = bytes.fromhex(salt_hex)
+    pwdhash = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, 100000)
+    return pwdhash.hex() == hash_hex
+
+@app.post("/api/register")
+def register(request: AuthRequest):
+    users_col = get_users_collection()
+    if users_col is None:
+        raise HTTPException(status_code=500, detail="Database not configured")
+        
+    if users_col.find_one({"email": request.email}):
+        raise HTTPException(status_code=400, detail="Email already registered")
+        
+    hashed = hash_password(request.password)
+    user_doc = {
+        "email": request.email,
+        "password_salt": hashed["salt"],
+        "password_hash": hashed["hash"],
+        "created_at": datetime.utcnow()
+    }
+    users_col.insert_one(user_doc)
+    
+    return {"message": "Registration successful", "token": secrets.token_hex(32)}
+
+@app.post("/api/login")
+def login(request: AuthRequest):
+    users_col = get_users_collection()
+    if users_col is None:
+        raise HTTPException(status_code=500, detail="Database not configured")
+        
+    user = users_col.find_one({"email": request.email})
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+        
+    if not verify_password(request.password, user["password_salt"], user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+        
+    return {"message": "Login successful", "token": secrets.token_hex(32)}
 
 @app.post("/api/upload")
 async def upload_document(file: UploadFile = File(...)):

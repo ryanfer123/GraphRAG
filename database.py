@@ -11,6 +11,7 @@ client = None
 db = None
 documents_collection = None
 chat_history_collection = None
+users_collection = None
 
 if MONGO_URI:
     try:
@@ -18,6 +19,7 @@ if MONGO_URI:
         db = client.get_database("graphrag")
         documents_collection = db.get_collection("documents")
         chat_history_collection = db.get_collection("chat_history")
+        users_collection = db.get_collection("users")
         logger.info("MongoDB connected successfully.")
     except Exception as e:
         logger.error(f"Failed to connect to MongoDB: {e}")
@@ -29,3 +31,6 @@ def get_documents_collection():
 
 def get_chat_history_collection():
     return chat_history_collection
+
+def get_users_collection():
+    return users_collection
