@@ -25,14 +25,7 @@ export default function DocumentSummary() {
   const selectedDoc = documents.find(d => d.id === selectedDocId) || documents[0]
 
   if (!selectedDoc) {
-    return (
-      <section className="doc-summary-panel" style={{display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#888'}}>
-        <div style={{textAlign: 'center'}}>
-           <FileText size={32} style={{opacity: 0.5, marginBottom: '1rem'}} />
-           <p>No document selected.</p>
-        </div>
-      </section>
-    )
+    return null
   }
 
   const details = selectedDoc.details || {}
