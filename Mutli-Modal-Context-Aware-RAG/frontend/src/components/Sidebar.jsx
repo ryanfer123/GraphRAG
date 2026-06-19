@@ -96,10 +96,10 @@ export default function Sidebar({ active, setActive }) {
         {active === 'settings' && (
           <div className="sidebar-list">
             <p className="sidebar-list-title">Pipeline settings</p>
-            <div className="setting-row"><span>Retrieval top-k</span><span className="mono">8</span></div>
-            <div className="setting-row"><span>Reranker</span><span className="mono">bge-reranker-base</span></div>
-            <div className="setting-row"><span>Generation model</span><span className="mono">llama-3-70b</span></div>
-            <div className="setting-row"><span>Graph hop depth</span><span className="mono">1</span></div>
+            <div className="setting-row"><span>Retrieval top-k</span><span className="mono">6</span></div>
+            <div className="setting-row"><span>Reranker</span><span className="mono">ms-marco-L-6</span></div>
+            <div className="setting-row"><span>Generation model</span><span className="mono">llama-3.3-70b</span></div>
+            <div className="setting-row"><span>Graph hop depth</span><span className="mono">2</span></div>
           </div>
         )}
       </div>
