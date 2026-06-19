@@ -36,6 +36,20 @@ export default function Sidebar({ active, setActive }) {
     return () => window.removeEventListener('graph-updated', fetchStatus)
   }, [])
 
+  const handleSwitch = async (docId, status) => {
+    if (status !== 'indexed') {
+      alert("This document graph is no longer in memory. Please re-upload it to explore.");
+      return;
+    }
+    try {
+      await axios.post('/api/switch', { doc_id: docId });
+      fetchStatus();
+      window.dispatchEvent(new Event('graph-updated'));
+    } catch (err) {
+      alert("Failed to switch document: " + (err.response?.data?.detail || err.message));
+    }
+  }
+
   return (
     <aside className="sidebar">
       <nav className="sidebar-nav">
@@ -61,15 +75,20 @@ export default function Sidebar({ active, setActive }) {
             {documents.map((doc) => (
               <div 
                 key={doc.id} 
-                className="doc-row"
-                onClick={() => alert("Document switching is coming in v2! For now, please re-upload a document to set it as the active graph context.")}
+                className={`doc-row ${doc.is_active ? 'is-active' : ''}`}
+                onClick={() => handleSwitch(doc.id, doc.status)}
+                style={{ cursor: doc.status === 'indexed' ? 'pointer' : 'not-allowed', opacity: doc.status === 'indexed' ? 1 : 0.6 }}
               >
                 <FileText size={14} className="doc-row-icon" />
                 <div className="doc-row-info">
                   <span className="doc-row-name">{doc.name}</span>
                   <span className="doc-row-meta">{doc.pages} pages</span>
                 </div>
-                <span className={`doc-badge doc-badge-${doc.status}`}>{doc.status}</span>
+                {doc.is_active ? (
+                  <span className="doc-badge doc-badge-active">ACTIVE</span>
+                ) : (
+                  <span className={`doc-badge doc-badge-${doc.status}`}>{doc.status}</span>
+                )}
               </div>
             ))}
           </div>

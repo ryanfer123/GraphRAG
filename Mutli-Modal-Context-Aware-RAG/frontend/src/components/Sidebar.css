@@ -118,6 +118,16 @@
   color: var(--node-yellow);
 }
 
+.doc-badge-active {
+  background: var(--accent-2);
+  color: #fff;
+}
+
+.doc-badge-inactive {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-dim);
+}
+
 .history-row {
   padding: 9px 10px;
   border-radius: var(--radius-sm);

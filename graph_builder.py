@@ -34,7 +34,7 @@ def cosine_similarity(vec1: np.ndarray, vec2: np.ndarray) -> float:
     return float(dot_product / (norm_a * norm_b))
 
 
-def build_graph_and_index(elements: List[BaseDocumentElement]) -> Tuple[nx.DiGraph, Any]:
+def build_graph_and_index(elements: List[BaseDocumentElement], doc_id: str) -> Tuple[nx.DiGraph, Any]:
     """
     Embeds elements, stores them in ChromaDB, and builds a NetworkX Knowledge Graph.
     
@@ -47,12 +47,13 @@ def build_graph_and_index(elements: List[BaseDocumentElement]) -> Tuple[nx.DiGra
     # 1. Initialize NetworkX Graph and ChromaDB Persistent Client
     graph = nx.DiGraph()
     chroma_client = chromadb.PersistentClient(path="./chroma_db_storage")
-    # Delete any stale collection from previous runs to avoid ID mismatches
+    
+    collection_name = f"doc_{doc_id.replace('-', '_')}"
     try:
-        chroma_client.delete_collection(name="document_elements")
+        chroma_client.delete_collection(name=collection_name)
     except Exception:
         pass
-    collection = chroma_client.create_collection(name="document_elements")
+    collection = chroma_client.create_collection(name=collection_name)
     
     # Gracefully handle an empty list
     if not elements:

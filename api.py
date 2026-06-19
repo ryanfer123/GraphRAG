@@ -31,17 +31,15 @@ app.add_middleware(
 
 # Global State
 GLOBAL_STATE = {
-    "doc_id": None,
-    "graph": None,
-    "collection": None,
-    "elements": None,
-    "doc_name": None,
-    "doc_size": None,
-    "summary_data": None
+    "active_doc_id": None,
+    "documents": {}
 }
 
 class QueryRequest(BaseModel):
     query: str
+
+class SwitchRequest(BaseModel):
+    doc_id: str
 
 @app.post("/api/upload")
 async def upload_document(file: UploadFile = File(...)):
@@ -67,21 +65,22 @@ async def upload_document(file: UploadFile = File(...)):
         if not elements:
             raise HTTPException(status_code=400, detail="No elements could be extracted.")
 
-        graph, collection = build_graph_and_index(elements)
+        doc_id = str(uuid.uuid4())
+        graph, collection = build_graph_and_index(elements, doc_id)
         
         # Aggregate text for summarization
         full_text = "\n".join([getattr(e, "text", str(e)) for e in elements if type(e).__name__ == "TextElement"])
         summary_data = generate_document_summary(full_text)
         
-        doc_id = str(uuid.uuid4())
-        
-        GLOBAL_STATE["doc_id"] = doc_id
-        GLOBAL_STATE["graph"] = graph
-        GLOBAL_STATE["collection"] = collection
-        GLOBAL_STATE["elements"] = elements
-        GLOBAL_STATE["doc_name"] = file.filename
-        GLOBAL_STATE["doc_size"] = size_str
-        GLOBAL_STATE["summary_data"] = summary_data
+        GLOBAL_STATE["documents"][doc_id] = {
+            "graph": graph,
+            "collection": collection,
+            "elements": elements,
+            "doc_name": file.filename,
+            "doc_size": size_str,
+            "summary_data": summary_data
+        }
+        GLOBAL_STATE["active_doc_id"] = doc_id
 
         text_count = sum(1 for e in elements if type(e).__name__ == "TextElement")
         table_count = sum(1 for e in elements if type(e).__name__ == "TableElement")
@@ -118,11 +117,21 @@ async def upload_document(file: UploadFile = File(...)):
         logging.error(f"Error in upload: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.post("/api/switch")
+def switch_document(request: SwitchRequest):
+    if request.doc_id in GLOBAL_STATE["documents"]:
+        GLOBAL_STATE["active_doc_id"] = request.doc_id
+        return {"status": "success"}
+    else:
+        raise HTTPException(status_code=404, detail="Document graph not currently in memory. Please re-upload.")
+
 @app.get("/api/graph")
 def get_graph():
-    graph = GLOBAL_STATE["graph"]
-    if graph is None:
+    doc_id = GLOBAL_STATE["active_doc_id"]
+    if not doc_id or doc_id not in GLOBAL_STATE["documents"]:
         return {"nodes": [], "edges": []}
+    
+    graph = GLOBAL_STATE["documents"][doc_id]["graph"]
     
     nodes = []
     edges = []
@@ -163,16 +172,18 @@ def get_graph():
     return {"nodes": nodes, "edges": edges}
 
 @app.post("/api/chat")
-def chat(req: QueryRequest):
-    graph = GLOBAL_STATE["graph"]
-    collection = GLOBAL_STATE["collection"]
-
-    if not graph or not collection:
-        raise HTTPException(status_code=400, detail="No document processed yet.")
-
+def chat_endpoint(request: QueryRequest):
+    doc_id = GLOBAL_STATE["active_doc_id"]
+    if not doc_id or doc_id not in GLOBAL_STATE["documents"]:
+        raise HTTPException(status_code=400, detail="No active document found.")
+        
+    doc_state = GLOBAL_STATE["documents"][doc_id]
+    graph = doc_state["graph"]
+    collection = doc_state["collection"]
+    
     try:
-        context_str = retrieve_context(req.query, collection, graph)
-        result = generate_answer(req.query, context_str)
+        context_str = retrieve_context(request.query, collection, graph)
+        result = generate_answer(request.query, context_str)
         
         citations = []
         cited_ids = result.get("cited_ids", [])
@@ -198,16 +209,16 @@ def chat(req: QueryRequest):
                 })
 
         chat_col = get_chat_history_collection()
-        if chat_col is not None and GLOBAL_STATE.get("doc_id"):
+        if chat_col is not None:
             chat_col.insert_many([
                 {
-                    "doc_id": GLOBAL_STATE["doc_id"],
+                    "doc_id": doc_id,
                     "role": "user",
-                    "content": req.query,
+                    "content": request.query,
                     "timestamp": datetime.utcnow()
                 },
                 {
-                    "doc_id": GLOBAL_STATE["doc_id"],
+                    "doc_id": doc_id,
                     "role": "assistant",
                     "content": result.get("answer", ""),
                     "citations": citations,
@@ -232,13 +243,19 @@ def get_status():
         if docs:
             result_docs = []
             for d in docs:
+                if d["_id"] in GLOBAL_STATE["documents"]:
+                    status = "indexed"
+                else:
+                    status = "inactive"
+                
                 stats = d.get("stats", {})
                 summary_data = d.get("summary", {})
                 result_docs.append({
                     "id": str(d["_id"]),
                     "name": d.get("name", "Unknown"),
-                    "status": "indexed",
-                    "pages": 1,
+                    "status": status,
+                    "pages": d.get("stats", {}).get("text", 0) // 5 + 1,
+                    "is_active": d["_id"] == GLOBAL_STATE["active_doc_id"],
                     "details": {
                         "size": d.get("size", "Unknown"),
                         "entitiesCount": stats.get("nodes", 0),
@@ -249,48 +266,13 @@ def get_status():
                     }
                 })
             
-            # Re-associate doc_id if memory is wiped
-            if GLOBAL_STATE.get("doc_id") is None and len(result_docs) > 0:
-                GLOBAL_STATE["doc_id"] = result_docs[0]["id"]
-                
             return {"documents": result_docs}
 
-    graph = GLOBAL_STATE.get("graph")
-    doc_name = GLOBAL_STATE.get("doc_name")
-    
-    if not graph or not doc_name:
-        return {"documents": []}
-        
-    nodes = graph.number_of_nodes()
-    edges = graph.number_of_edges()
-    elements = GLOBAL_STATE.get("elements", [])
-    text_count = sum(1 for e in elements if type(e).__name__ == "TextElement")
-    table_count = sum(1 for e in elements if type(e).__name__ == "TableElement")
-    doc_size = GLOBAL_STATE.get("doc_size", "Unknown")
-    summary_data = GLOBAL_STATE.get("summary_data", {})
-    
-    return {
-        "documents": [
-            {
-                "id": GLOBAL_STATE.get("doc_id", "current_doc"),
-                "name": doc_name,
-                "status": "indexed",
-                "pages": 1,
-                "details": {
-                    "size": doc_size,
-                    "entitiesCount": nodes,
-                    "relationsCount": edges,
-                    "summary": summary_data.get("summary", f"Processed {text_count} texts"),
-                    "highlights": summary_data.get("highlights", []),
-                    "entities": summary_data.get("entities", [])
-                }
-            }
-        ]
-    }
+    return {"documents": []}
 
 @app.get("/api/chat/history")
 def get_chat_history():
-    doc_id = GLOBAL_STATE.get("doc_id")
+    doc_id = GLOBAL_STATE["active_doc_id"]
     if not doc_id:
         return {"history": []}
         
