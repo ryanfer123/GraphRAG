@@ -59,7 +59,11 @@ export default function Sidebar({ active, setActive }) {
             <p className="sidebar-list-title">Indexed documents</p>
             {documents.length === 0 && <div className="sidebar-hint" style={{margin: '0.5rem 1rem'}}>No documents uploaded yet.</div>}
             {documents.map((doc) => (
-              <div key={doc.id} className="doc-row">
+              <div 
+                key={doc.id} 
+                className="doc-row"
+                onClick={() => alert("Document switching is coming in v2! For now, please re-upload a document to set it as the active graph context.")}
+              >
                 <FileText size={14} className="doc-row-icon" />
                 <div className="doc-row-info">
                   <span className="doc-row-name">{doc.name}</span>

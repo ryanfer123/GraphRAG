@@ -68,6 +68,7 @@
   padding: 8px;
   border-radius: var(--radius-sm);
   margin-bottom: 4px;
+  cursor: pointer;
 }
 
 .doc-row:hover {
