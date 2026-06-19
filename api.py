@@ -6,6 +6,8 @@ from typing import Optional, List, Dict, Any
 
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 # Backend imports
@@ -306,3 +308,18 @@ def get_chat_history():
         
     return {"history": history}
 
+# Serve React Frontend
+frontend_dist = os.path.join(os.path.dirname(__file__), "Mutli-Modal-Context-Aware-RAG", "frontend", "dist")
+if os.path.exists(frontend_dist):
+    app.mount("/assets", StaticFiles(directory=os.path.join(frontend_dist, "assets")), name="assets")
+    
+    @app.get("/{catchall:path}")
+    def serve_frontend(catchall: str):
+        # Prevent API routes from falling through to the frontend
+        if catchall.startswith("api/"):
+            raise HTTPException(status_code=404, detail="API route not found")
+            
+        index_path = os.path.join(frontend_dist, "index.html")
+        if os.path.exists(index_path):
+            return FileResponse(index_path)
+        raise HTTPException(status_code=404, detail="Frontend not built yet")
