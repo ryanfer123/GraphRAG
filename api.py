@@ -151,21 +151,24 @@ def process_document_task(tmp_path: str, filename: str, size_str: str, doc_id: s
 
         docs_col = get_documents_collection()
         if docs_col is not None:
-            docs_col.insert_one({
-                "_id": doc_id,
-                "name": filename,
-                "size": size_str,
-                "summary": summary_data,
-                "stats": {
-                    "nodes": graph.number_of_nodes(),
-                    "edges": graph.number_of_edges(),
-                    "text": text_count,
-                    "tables": table_count,
-                    "images": image_count
-                },
-                "uploaded_at": datetime.utcnow()
-            })
-            
+            try:
+                docs_col.insert_one({
+                    "_id": doc_id,
+                    "name": filename,
+                    "size": size_str,
+                    "summary": summary_data,
+                    "stats": {
+                        "nodes": graph.number_of_nodes(),
+                        "edges": graph.number_of_edges(),
+                        "text": text_count,
+                        "tables": table_count,
+                        "images": image_count
+                    },
+                    "uploaded_at": datetime.utcnow()
+                })
+            except Exception as mongo_e:
+                logging.error(f"Failed to save document to MongoDB: {mongo_e}")
+                
         UPLOAD_PROGRESS[doc_id]["progress"] = 100
         UPLOAD_PROGRESS[doc_id]["status"] = "completed"
         UPLOAD_PROGRESS[doc_id]["message"] = "Processing complete."

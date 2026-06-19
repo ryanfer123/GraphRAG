@@ -20,6 +20,11 @@ You will need the following installed on your machine:
 - **Node.js 18+**
 - **Git**
 
+**Windows Users - Extra Step:**
+The Unstructured.io parsing library requires **Tesseract OCR** to extract text from images.
+- Download the Tesseract installer for Windows from UB Mannheim: [https://github.com/UB-Mannheim/tesseract/wiki](https://github.com/UB-Mannheim/tesseract/wiki)
+- Install it and ensure the installation folder (usually `C:\Program Files\Tesseract-OCR`) is added to your system's `PATH` environment variable.
+
 You will also need two API keys:
 1. **Groq API Key:** For the lightning-fast LLM inference.
 2. **MongoDB URI:** For storing the GraphRAG document state and chat history.
