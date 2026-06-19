@@ -12,6 +12,16 @@ export default function ChatPanel({ onHighlightNodes }) {
   const [isUploading, setIsUploading] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showOptions, setShowOptions] = useState(false)
+  const [thinkingStepIdx, setThinkingStepIdx] = useState(0)
+
+  const thinkingSteps = [
+    "Vectorizing query...",
+    "Retrieving semantic neighborhood...",
+    "Expanding context via 2-hop graph walk...",
+    "Reranking candidates with ms-marco-L-6...",
+    "Prompting llama-3.3-70b-versatile for synthesis...",
+    "Generating final grounded answer..."
+  ]
   
   const scrollRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -19,6 +29,20 @@ export default function ChatPanel({ onHighlightNodes }) {
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages, isThinking])
+
+  // Cycle through thinking steps
+  useEffect(() => {
+    let interval;
+    if (isThinking) {
+      setThinkingStepIdx(0);
+      interval = setInterval(() => {
+        setThinkingStepIdx(prev => Math.min(prev + 1, thinkingSteps.length - 1));
+      }, 1500);
+    } else {
+      setThinkingStepIdx(0);
+    }
+    return () => clearInterval(interval);
+  }, [isThinking])
 
   // Fetch chat history on component mount
   useEffect(() => {
@@ -147,7 +171,7 @@ export default function ChatPanel({ onHighlightNodes }) {
         {isThinking && (
           <div className="chat-thinking">
             <Loader2 size={14} className="chat-thinking-spinner animate-spin" />
-            Walking the graph and reranking sources...
+            {thinkingSteps[thinkingStepIdx]}
           </div>
         )}
       </div>
