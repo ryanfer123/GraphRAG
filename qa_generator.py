@@ -38,9 +38,9 @@ def generate_answer(query: str, context_str: str) -> Dict[str, Any]:
         "You are a highly skilled, strict document analyst. Your task is to answer the user's "
         "question using ONLY the provided context blocks.\n\n"
         "RULES:\n"
-        "1. GROUNDING: You MUST NOT use outside knowledge or hallucinate information. If the "
-        "provided context does not contain the information needed to answer, you must explicitly "
-        "state: 'I cannot answer this based on the provided context.'\n"
+        "1. GROUNDING (CRITICAL): You MUST NOT use outside knowledge, guess, or hallucinate information. "
+        "If the provided context does not contain the exact information needed to answer, or if the question is ambiguous or unanswerable based on the text, you MUST explicitly state: "
+        "'I cannot answer this based on the provided document context.'\n"
         "2. INLINE PER-SENTENCE CITATION: You MUST emit a citation tag `[ID: {id}]` immediately after "
         "EVERY distinct claim, number, or sentence. Do NOT wait until the end of the paragraph or "
         "answer to list citations.\n"
@@ -105,6 +105,58 @@ def generate_answer(query: str, context_str: str) -> Dict[str, Any]:
             "answer": "An error occurred while communicating with the LLM API. Please check your connection or API key and try again later.",
             "cited_ids": []
         }
+
+def decompose_query(query: str) -> List[str]:
+    """
+    Agentic Reasoning: Decomposes a complex, multi-hop user query into simpler atomic sub-queries.
+    If the query is simple, it returns the query in a list of length 1.
+    """
+    logger.info(f"Agentic Reasoning: Decomposing query: '{query}'")
+    
+    system_prompt = (
+        "You are an AI Query Decomposer for a Document QA system. "
+        "Your task is to analyze the user's question and break it down into atomic sub-questions if it requires multiple steps of reasoning or retrieving distinct pieces of information. "
+        "If the question is simple and asks for a single fact, return a JSON array containing just the original question.\n"
+        "Output MUST be a valid JSON array of strings, with no other text.\n"
+        "Examples:\n"
+        "Q: 'Compare the revenue in 2023 to the revenue in 2024.'\n"
+        "A: [\"What was the revenue in 2023?\", \"What was the revenue in 2024?\"]\n"
+        "Q: 'What is the company name?'\n"
+        "A: [\"What is the company name?\"]"
+    )
+    
+    try:
+        client = Groq()
+        completion = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": query}
+            ],
+            temperature=0.0,
+            max_tokens=256,
+            response_format={"type": "json_object"}
+        )
+        
+        response_text = completion.choices[0].message.content
+        # Sometimes Groq with JSON format wrapper puts it in a key, try to extract array
+        try:
+            parsed = json.loads(response_text)
+            if isinstance(parsed, list):
+                return parsed
+            elif isinstance(parsed, dict):
+                # if it returned {"queries": [...] }
+                for val in parsed.values():
+                    if isinstance(val, list):
+                        return val
+            return [query]
+        except:
+            return [query]
+            
+    except Exception as e:
+        logger.error(f"Failed to decompose query: {e}")
+        return [query]
+
 
 def generate_document_summary(text_content: str) -> Dict[str, Any]:
     """

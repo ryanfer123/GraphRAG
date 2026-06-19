@@ -88,3 +88,26 @@ The frontend is a Vite-powered React application with interactive ReactFlow grap
 2. **Upload a Document:** Navigate to the Dashboard and upload a PDF or DOCX. The backend will parse the text, tables, and images, embed them into ChromaDB, and build a NetworkX knowledge graph.
 3. **Explore the Graph:** Click on the generated nodes in the right-hand panel to see semantic relationships and entity extraction.
 4. **Chat:** Ask questions about the document. The system will retrieve the most relevant semantic chunks and graph edges, and the LLM will generate an answer with inline citations (e.g., `(Fig. 1)` or `(Page 3)`).
+
+---
+
+## 🌟 Hackathon Stretch Goals Achieved
+
+This project successfully implements all the bonus features requested in the hackathon problem statement:
+
+1. **Agentic Reasoning & Adversarial Robustness:**
+   - **Query Decomposition:** Complex, multi-hop user questions (e.g. "Compare revenue in Q1 and Q2") are automatically broken down into atomic sub-queries and routed to Groq (`llama-3.3-70b-versatile`) for highly targeted semantic retrieval.
+   - **Robust System Prompt:** The LLM is explicitly instructed to avoid hallucinations and confidently state when a question is unanswerable based on the provided document context, successfully handling "trick" questions.
+
+2. **Cross-Document QA (Global Knowledge Base):**
+   - The system maintains a unified ChromaDB collection (`global_collection`) and a global NetworkX graph (`global_graph`).
+   - The UI's Sidebar features a "Global Knowledge Base" mode. Selecting it allows users to search across *all* uploaded documents simultaneously!
+
+3. **Explainability Mode:**
+   - The LLM generates inline citations for every factual claim.
+   - The ChatPanel includes a collapsible "Sources Used" accordion. Clicking this expands a list of `SourceCard` components displaying the exact snippet, type (paragraph/table/image), and page number where the information was sourced.
+
+4. **Real-Time Ingestion (Streaming):**
+   - The `/api/upload` endpoint defers the heavy ingestion workload (MLX embedding and Unstructured layout extraction) to FastAPI `BackgroundTasks`.
+   - A Server-Sent Events (SSE) `/api/upload/stream/{doc_id}` endpoint broadcasts ingestion progress to the frontend.
+   - `UploadCard.jsx` listens to the SSE stream and renders an animated progress bar, giving the user real-time feedback on extraction, graph building, and summarization phases.

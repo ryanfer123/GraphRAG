@@ -22,6 +22,7 @@ const NAV_ITEMS = [
 
 export default function Sidebar({ active, setActive }) {
   const [documents, setDocuments] = useState([])
+  const [activeDocId, setActiveDocId] = useState(null)
 
   const [sessions, setSessions] = useState([])
   const [activeSessionId, setActiveSessionId] = useState(null)
@@ -30,6 +31,7 @@ export default function Sidebar({ active, setActive }) {
     try {
       const res = await axios.get('/api/status')
       setDocuments(res.data.documents || [])
+      setActiveDocId(res.data.active_doc_id)
     } catch (err) {
       console.error("Failed to fetch status", err)
     }
@@ -125,6 +127,18 @@ export default function Sidebar({ active, setActive }) {
         {active === 'documents' && (
           <div className="sidebar-list">
             <p className="sidebar-list-title">Indexed documents</p>
+            <div 
+              className={`doc-row ${activeDocId === 'global' ? 'is-active' : ''}`}
+              onClick={() => handleSwitch('global', 'indexed')}
+              style={{ cursor: 'pointer', marginBottom: '8px', border: '1px solid var(--border)' }}
+            >
+              <FileText size={14} className="doc-row-icon" style={{color: 'var(--primary)'}} />
+              <div className="doc-row-info">
+                <span className="doc-row-name" style={{fontWeight: 600}}>Global Knowledge Base</span>
+                <span className="doc-row-meta">Search across all documents</span>
+              </div>
+            </div>
+            
             {documents.length === 0 && <div className="sidebar-hint" style={{margin: '0.5rem 1rem'}}>No documents uploaded yet.</div>}
             {documents.map((doc) => (
               <div 

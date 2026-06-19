@@ -8,6 +8,8 @@ export default function UploadCard({ onUploadSuccess }) {
   const [files, setFiles] = useState([])
   const [isUploading, setIsUploading] = useState(false)
   const [uploadStatus, setUploadStatus] = useState(null)
+  const [progressMsg, setProgressMsg] = useState('')
+  const [progressVal, setProgressVal] = useState(0)
 
   const processUpload = async (fileList) => {
     if (fileList.length === 0) return
@@ -23,15 +25,43 @@ export default function UploadCard({ onUploadSuccess }) {
       const response = await axios.post('/api/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
-      setUploadStatus('success')
-      window.dispatchEvent(new CustomEvent('graph-updated'))
-      if (onUploadSuccess) {
-        onUploadSuccess(response.data)
-      }
+      
+      const docId = response.data.doc_id;
+      
+      const eventSource = new EventSource(`/api/upload/stream/${docId}`);
+      eventSource.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.status === 'error') {
+          console.error("Upload stream error:", data.message);
+          setUploadStatus('error');
+          setProgressMsg(data.message || 'Processing failed');
+          setIsUploading(false);
+          eventSource.close();
+        } else {
+          setProgressVal(data.progress || 0);
+          setProgressMsg(data.message || '');
+          if (data.status === 'completed') {
+            setUploadStatus('success');
+            setIsUploading(false);
+            window.dispatchEvent(new CustomEvent('graph-updated'));
+            if (onUploadSuccess) onUploadSuccess(response.data);
+            eventSource.close();
+          }
+        }
+      };
+      
+      eventSource.onerror = (err) => {
+        console.error("SSE Error", err);
+        eventSource.close();
+        if (uploadStatus !== 'success') {
+          setUploadStatus('error');
+          setIsUploading(false);
+        }
+      };
+
     } catch (err) {
       console.error("Upload failed", err)
       setUploadStatus('error')
-    } finally {
       setIsUploading(false)
     }
   }
@@ -87,8 +117,15 @@ export default function UploadCard({ onUploadSuccess }) {
               </span>
             </div>
           ))}
+          
+          {(isUploading || uploadStatus === 'success') && progressVal > 0 && (
+            <div className="upload-progress-container">
+              <div className="upload-progress-bar" style={{ width: `${progressVal}%` }}></div>
+            </div>
+          )}
+          
           <p className="upload-note">
-            Ingestion (Unstructured.io, MLX Qwen2-VL) running on backend...
+            {progressMsg ? progressMsg : "Ingestion running on backend..."}
           </p>
         </div>
       )}

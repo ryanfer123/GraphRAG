@@ -34,27 +34,20 @@ def cosine_similarity(vec1: np.ndarray, vec2: np.ndarray) -> float:
     return float(dot_product / (norm_a * norm_b))
 
 
-def build_graph_and_index(elements: List[BaseDocumentElement], doc_id: str) -> Tuple[nx.DiGraph, Any]:
+def build_graph_and_index(elements: List[BaseDocumentElement], doc_id: str, graph: nx.DiGraph, collection: Any) -> Tuple[nx.DiGraph, Any]:
     """
-    Embeds elements, stores them in ChromaDB, and builds a NetworkX Knowledge Graph.
+    Constructs a semantic and structural Knowledge Graph from document elements
+    and indexes their embeddings in ChromaDB.
     
     Args:
         elements (List[BaseDocumentElement]): A list of extracted document elements.
+        doc_id (str): The unique identifier for the document.
+        graph (nx.DiGraph): The global NetworkX DiGraph.
+        collection (Any): The global ChromaDB collection.
         
     Returns:
-        Tuple[nx.DiGraph, Any]: The initialized NetworkX DiGraph and ChromaDB collection.
+        Tuple[nx.DiGraph, Any]: The updated NetworkX DiGraph and ChromaDB collection.
     """
-    # 1. Initialize NetworkX Graph and ChromaDB Persistent Client
-    graph = nx.DiGraph()
-    chroma_client = chromadb.PersistentClient(path="./chroma_db_storage")
-    
-    collection_name = f"doc_{doc_id.replace('-', '_')}"
-    try:
-        chroma_client.delete_collection(name=collection_name)
-    except Exception:
-        pass
-    collection = chroma_client.create_collection(name=collection_name)
-    
     # Gracefully handle an empty list
     if not elements:
         return graph, collection
@@ -101,9 +94,10 @@ def build_graph_and_index(elements: List[BaseDocumentElement], doc_id: str) -> T
         # 2a. Add Node to NetworkX Graph
         graph.add_node(
             str(el.element_id),
+            doc_id=doc_id,
             element_type=el_type,
             content=content,
-            page_number=el.page_number
+            page_number=getattr(el, "page_number", 1)
         )
         
         # 2b. Append data to ChromaDB lists
@@ -112,8 +106,9 @@ def build_graph_and_index(elements: List[BaseDocumentElement], doc_id: str) -> T
         # ChromaDB expects standard python lists of floats for embeddings
         embeddings.append(emb.tolist())
         metadatas.append({
+            "doc_id": doc_id,
             "element_type": el_type,
-            "page_number": el.page_number
+            "page_number": getattr(el, "page_number", 1)
         })
         
     # Upsert all embedded documents to ChromaDB in a single batch

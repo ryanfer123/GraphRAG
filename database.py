@@ -15,7 +15,7 @@ users_collection = None
 
 if MONGO_URI:
     try:
-        client = MongoClient(MONGO_URI)
+        client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=2000)
         db = client.get_database("graphrag")
         documents_collection = db.get_collection("documents")
         chat_history_collection = db.get_collection("chat_history")

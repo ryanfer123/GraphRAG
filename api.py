@@ -6,11 +6,13 @@ import hashlib
 import secrets
 from typing import Optional, List, Dict, Any
 
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
+import asyncio
+import json
 
 # Backend imports lazily loaded in endpoints to prevent port bind timeout on Render
 from database import get_documents_collection, get_chat_history_collection, get_users_collection
@@ -27,12 +29,24 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+import networkx as nx
+import chromadb
+
+# Initialize global graph and collection for cross-document QA
+global_chroma_client = chromadb.PersistentClient(path="./chroma_db_storage")
+global_collection = global_chroma_client.get_or_create_collection(name="global_collection")
+global_graph = nx.DiGraph()
+
 # Global State
 GLOBAL_STATE = {
     "active_doc_id": None,
     "documents": {},
-    "sessions": {}
+    "sessions": {},
+    "global_graph": global_graph,
+    "global_collection": global_collection
 }
+
+UPLOAD_PROGRESS = {}
 
 class QueryRequest(BaseModel):
     query: str
@@ -90,42 +104,34 @@ def login(request: AuthRequest):
         
     return {"message": "Login successful", "token": secrets.token_hex(32)}
 
-@app.post("/api/upload")
-async def upload_document(file: UploadFile = File(...)):
-    from ingestion_pipeline import process_document
-    from graph_builder import build_graph_and_index
-    from qa_generator import generate_document_summary
-    
+def process_document_task(tmp_path: str, filename: str, size_str: str, doc_id: str):
     try:
-        ext = os.path.splitext(file.filename)[1].lower()
-        if ext not in ['.pdf', '.docx']:
-            ext = '.pdf'
-            
-        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
-            tmp.write(await file.read())
-            tmp_path = tmp.name
-
-        # Get file size
-        size_bytes = os.path.getsize(tmp_path)
-        if size_bytes < 1024:
-            size_str = f"{size_bytes} B"
-        elif size_bytes < 1024 * 1024:
-            size_str = f"{size_bytes / 1024:.1f} KB"
-        else:
-            size_str = f"{size_bytes / (1024 * 1024):.1f} MB"
-
+        UPLOAD_PROGRESS[doc_id]["progress"] = 20
+        UPLOAD_PROGRESS[doc_id]["message"] = "Extracting elements..."
+        from ingestion_pipeline import process_document
         elements = process_document(tmp_path)
-        
-        # Delete temporary file after processing
         os.unlink(tmp_path)
         
         if not elements:
-            raise HTTPException(status_code=400, detail="No elements could be extracted.")
+            UPLOAD_PROGRESS[doc_id]["status"] = "error"
+            UPLOAD_PROGRESS[doc_id]["message"] = "No elements could be extracted."
+            return
 
-        doc_id = str(uuid.uuid4())
-        graph, collection = build_graph_and_index(elements, doc_id)
+        UPLOAD_PROGRESS[doc_id]["progress"] = 50
+        UPLOAD_PROGRESS[doc_id]["message"] = "Building graph & indexing..."
         
-        # Aggregate text for summarization
+        from graph_builder import build_graph_and_index
+        graph, collection = build_graph_and_index(
+            elements, 
+            doc_id, 
+            GLOBAL_STATE["global_graph"], 
+            GLOBAL_STATE["global_collection"]
+        )
+        
+        UPLOAD_PROGRESS[doc_id]["progress"] = 80
+        UPLOAD_PROGRESS[doc_id]["message"] = "Generating summary..."
+        
+        from qa_generator import generate_document_summary
         full_text = "\n".join([getattr(e, "text", str(e)) for e in elements if type(e).__name__ == "TextElement"])
         summary_data = generate_document_summary(full_text)
         
@@ -133,7 +139,7 @@ async def upload_document(file: UploadFile = File(...)):
             "graph": graph,
             "collection": collection,
             "elements": elements,
-            "doc_name": file.filename,
+            "doc_name": filename,
             "doc_size": size_str,
             "summary_data": summary_data
         }
@@ -147,7 +153,7 @@ async def upload_document(file: UploadFile = File(...)):
         if docs_col is not None:
             docs_col.insert_one({
                 "_id": doc_id,
-                "name": file.filename,
+                "name": filename,
                 "size": size_str,
                 "summary": summary_data,
                 "stats": {
@@ -159,24 +165,76 @@ async def upload_document(file: UploadFile = File(...)):
                 },
                 "uploaded_at": datetime.utcnow()
             })
+            
+        UPLOAD_PROGRESS[doc_id]["progress"] = 100
+        UPLOAD_PROGRESS[doc_id]["status"] = "completed"
+        UPLOAD_PROGRESS[doc_id]["message"] = "Processing complete."
+
+    except Exception as e:
+        UPLOAD_PROGRESS[doc_id]["status"] = "error"
+        UPLOAD_PROGRESS[doc_id]["message"] = str(e)
+
+
+@app.post("/api/upload")
+async def upload_document(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
+    doc_id = str(uuid.uuid4())
+    UPLOAD_PROGRESS[doc_id] = {
+        "status": "uploading",
+        "progress": 0,
+        "message": "Saving file..."
+    }
+    
+    try:
+        ext = os.path.splitext(file.filename)[1].lower()
+        if ext not in ['.pdf', '.docx']:
+            ext = '.pdf'
+            
+        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+            tmp.write(await file.read())
+            tmp_path = tmp.name
+
+        size_bytes = os.path.getsize(tmp_path)
+        if size_bytes < 1024:
+            size_str = f"{size_bytes} B"
+        elif size_bytes < 1024 * 1024:
+            size_str = f"{size_bytes / 1024:.1f} KB"
+        else:
+            size_str = f"{size_bytes / (1024 * 1024):.1f} MB"
+
+        background_tasks.add_task(process_document_task, tmp_path, file.filename, size_str, doc_id)
 
         return {
-            "message": "Upload and processing successful",
-            "stats": {
-                "nodes": graph.number_of_nodes(),
-                "edges": graph.number_of_edges(),
-                "text": text_count,
-                "tables": table_count,
-                "images": image_count
-            }
+            "message": "Upload started",
+            "doc_id": doc_id
         }
+        
     except Exception as e:
-        logging.error(f"Error in upload: {e}")
+        UPLOAD_PROGRESS[doc_id] = {"status": "error", "progress": 0, "message": str(e)}
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/upload/stream/{doc_id}")
+async def upload_stream(doc_id: str):
+    async def event_generator():
+        last_progress = -1
+        while True:
+            if doc_id not in UPLOAD_PROGRESS:
+                yield f"data: {json.dumps({'status': 'error', 'message': 'Unknown doc_id'})}\n\n"
+                break
+                
+            state = UPLOAD_PROGRESS[doc_id]
+            if state["progress"] != last_progress:
+                yield f"data: {json.dumps(state)}\n\n"
+                last_progress = state["progress"]
+                
+            if state["status"] in ["completed", "error"]:
+                break
+            await asyncio.sleep(0.5)
+            
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 @app.post("/api/switch")
 def switch_document(request: SwitchRequest):
-    if request.doc_id in GLOBAL_STATE["documents"]:
+    if request.doc_id == "global" or request.doc_id in GLOBAL_STATE["documents"]:
         GLOBAL_STATE["active_doc_id"] = request.doc_id
         return {"status": "success"}
     else:
@@ -185,10 +243,15 @@ def switch_document(request: SwitchRequest):
 @app.get("/api/graph")
 def get_graph():
     doc_id = GLOBAL_STATE["active_doc_id"]
-    if not doc_id or doc_id not in GLOBAL_STATE["documents"]:
+    if not doc_id:
         return {"nodes": [], "edges": []}
-    
-    graph = GLOBAL_STATE["documents"][doc_id]["graph"]
+        
+    if doc_id == "global":
+        graph = GLOBAL_STATE["global_graph"]
+    else:
+        if doc_id not in GLOBAL_STATE["documents"]:
+            return {"nodes": [], "edges": []}
+        graph = GLOBAL_STATE["documents"][doc_id]["graph"]
     
     nodes = []
     edges = []
@@ -231,18 +294,31 @@ def get_graph():
 @app.post("/api/chat")
 def chat_endpoint(request: QueryRequest):
     from retriever import retrieve_context
-    from qa_generator import generate_answer
+    from qa_generator import generate_answer, decompose_query
     
     doc_id = GLOBAL_STATE["active_doc_id"]
-    if not doc_id or doc_id not in GLOBAL_STATE["documents"]:
+    if not doc_id:
         raise HTTPException(status_code=400, detail="No active document found.")
         
-    doc_state = GLOBAL_STATE["documents"][doc_id]
-    graph = doc_state["graph"]
-    collection = doc_state["collection"]
+    if doc_id == "global":
+        graph = GLOBAL_STATE["global_graph"]
+        collection = GLOBAL_STATE["global_collection"]
+    else:
+        if doc_id not in GLOBAL_STATE["documents"]:
+            raise HTTPException(status_code=400, detail="Document not found.")
+        doc_state = GLOBAL_STATE["documents"][doc_id]
+        graph = doc_state["graph"]
+        collection = doc_state["collection"]
     
     try:
-        context_str = retrieve_context(request.query, collection, graph)
+        sub_queries = decompose_query(request.query)
+        context_parts = []
+        for sq in sub_queries:
+            ctx = retrieve_context(sq, collection, graph)
+            if ctx and ctx not in context_parts:
+                context_parts.append(ctx)
+                
+        context_str = "\n\n".join(context_parts)
         result = generate_answer(request.query, context_str)
         
         citations = []
@@ -305,37 +381,63 @@ def chat_endpoint(request: QueryRequest):
 @app.get("/api/status")
 def get_status():
     docs_col = get_documents_collection()
+    result_docs = []
+    
     if docs_col is not None:
-        docs = list(docs_col.find().sort("uploaded_at", -1))
-        if docs:
-            result_docs = []
-            for d in docs:
-                if d["_id"] in GLOBAL_STATE["documents"]:
-                    status = "indexed"
-                else:
-                    status = "inactive"
-                
-                stats = d.get("stats", {})
-                summary_data = d.get("summary", {})
-                result_docs.append({
-                    "id": str(d["_id"]),
-                    "name": d.get("name", "Unknown"),
-                    "status": status,
-                    "pages": d.get("stats", {}).get("text", 0) // 5 + 1,
-                    "is_active": d["_id"] == GLOBAL_STATE["active_doc_id"],
-                    "details": {
-                        "size": d.get("size", "Unknown"),
-                        "entitiesCount": stats.get("nodes", 0),
-                        "relationsCount": stats.get("edges", 0),
-                        "summary": summary_data.get("summary", "Document processed."),
-                        "highlights": summary_data.get("highlights", []),
-                        "entities": summary_data.get("entities", [])
-                    }
-                })
+        try:
+            docs = list(docs_col.find().sort("uploaded_at", -1))
+            if docs:
+                for d in docs:
+                    if d["_id"] in GLOBAL_STATE["documents"]:
+                        status = "indexed"
+                    else:
+                        status = "inactive"
+                    
+                    stats = d.get("stats", {})
+                    summary_data = d.get("summary", {})
+                    result_docs.append({
+                        "id": str(d["_id"]),
+                        "name": d.get("name", "Unknown"),
+                        "status": status,
+                        "pages": d.get("stats", {}).get("text", 0) // 5 + 1,
+                        "is_active": d["_id"] == GLOBAL_STATE["active_doc_id"],
+                        "details": {
+                            "size": d.get("size", "Unknown"),
+                            "entitiesCount": stats.get("nodes", 0),
+                            "relationsCount": stats.get("edges", 0),
+                            "summary": summary_data.get("summary", "Document processed."),
+                            "highlights": summary_data.get("highlights", []),
+                            "entities": summary_data.get("entities", [])
+                        }
+                    })
+        except Exception as e:
+            logging.error(f"MongoDB connection failed: {e}")
             
-            return {"documents": result_docs}
+    # Fallback to in-memory GLOBAL_STATE if MongoDB fails or is empty
+    if not result_docs and GLOBAL_STATE["documents"]:
+        for doc_id, doc_data in GLOBAL_STATE["documents"].items():
+            graph = doc_data["graph"]
+            summary_data = doc_data.get("summary_data", {})
+            result_docs.append({
+                "id": doc_id,
+                "name": doc_data.get("doc_name", "Unknown"),
+                "status": "indexed",
+                "pages": 1,
+                "is_active": doc_id == GLOBAL_STATE["active_doc_id"],
+                "details": {
+                    "size": doc_data.get("doc_size", "Unknown"),
+                    "entitiesCount": graph.number_of_nodes(),
+                    "relationsCount": graph.number_of_edges(),
+                    "summary": summary_data.get("summary", "Document processed."),
+                    "highlights": summary_data.get("highlights", []),
+                    "entities": summary_data.get("entities", [])
+                }
+            })
 
-    return {"documents": []}
+    return {
+        "documents": result_docs,
+        "active_doc_id": GLOBAL_STATE["active_doc_id"]
+    }
 
 @app.delete("/api/documents/{doc_id}")
 def delete_document(doc_id: str):
