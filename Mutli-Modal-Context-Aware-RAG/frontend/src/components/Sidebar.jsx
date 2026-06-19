@@ -5,6 +5,7 @@ import {
   MessageSquare,
   Share2,
   Settings,
+  Trash2,
 } from 'lucide-react'
 import axios from 'axios'
 import UploadCard from './UploadCard.jsx'
@@ -50,6 +51,18 @@ export default function Sidebar({ active, setActive }) {
     }
   }
 
+  const handleDelete = async (e, docId) => {
+    e.stopPropagation();
+    if (!confirm("Are you sure you want to delete this document?")) return;
+    try {
+      await axios.delete(`/api/documents/${docId}`);
+      fetchStatus();
+      window.dispatchEvent(new Event('graph-updated'));
+    } catch (err) {
+      alert("Failed to delete document: " + (err.response?.data?.detail || err.message));
+    }
+  }
+
   return (
     <aside className="sidebar">
       <nav className="sidebar-nav">
@@ -89,6 +102,13 @@ export default function Sidebar({ active, setActive }) {
                 ) : (
                   <span className={`doc-badge doc-badge-${doc.status}`}>{doc.status}</span>
                 )}
+                <div 
+                  className="doc-delete-btn" 
+                  onClick={(e) => handleDelete(e, doc.id)}
+                  title="Delete Document"
+                >
+                  <Trash2 size={14} />
+                </div>
               </div>
             ))}
           </div>

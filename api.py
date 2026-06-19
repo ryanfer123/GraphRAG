@@ -325,6 +325,24 @@ def get_status():
 
     return {"documents": []}
 
+@app.delete("/api/documents/{doc_id}")
+def delete_document(doc_id: str):
+    docs_col = get_documents_collection()
+    if docs_col is not None:
+        docs_col.delete_one({"_id": doc_id})
+    
+    chat_col = get_chat_history_collection()
+    if chat_col is not None:
+        chat_col.delete_many({"doc_id": doc_id})
+
+    if doc_id in GLOBAL_STATE["documents"]:
+        del GLOBAL_STATE["documents"][doc_id]
+        
+    if GLOBAL_STATE["active_doc_id"] == doc_id:
+        GLOBAL_STATE["active_doc_id"] = None
+        
+    return {"status": "success"}
+
 @app.get("/api/chat/history")
 def get_chat_history():
     doc_id = GLOBAL_STATE["active_doc_id"]

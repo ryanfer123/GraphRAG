@@ -128,6 +128,27 @@
   color: var(--text-dim);
 }
 
+.doc-delete-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-dim);
+  opacity: 0;
+  transition: all 0.2s;
+  padding: 4px;
+  border-radius: var(--radius-sm);
+  margin-left: 6px;
+}
+
+.doc-row:hover .doc-delete-btn {
+  opacity: 1;
+}
+
+.doc-delete-btn:hover {
+  background: rgba(255, 0, 0, 0.1);
+  color: red;
+}
+
 .history-row {
   padding: 9px 10px;
   border-radius: var(--radius-sm);
