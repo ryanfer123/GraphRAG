@@ -1,9 +1,0 @@
-services:
-  - type: web
-    name: graphrag-api
-    env: python
-    buildCommand: "cd Mutli-Modal-Context-Aware-RAG/frontend && npm install && npm run build && cd ../.. && pip install -r requirements.txt"
-    startCommand: "uvicorn api:app --host 0.0.0.0 --port $PORT"
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.10.12
