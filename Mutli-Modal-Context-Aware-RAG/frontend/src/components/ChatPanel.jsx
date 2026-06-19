@@ -58,6 +58,8 @@ export default function ChatPanel({ onHighlightNodes }) {
             highlightedNodes: []
           }))
           setMessages(loadedMessages)
+        } else {
+          setMessages([])
         }
       } catch (err) {
         console.error("Failed to load chat history:", err)
@@ -67,7 +69,11 @@ export default function ChatPanel({ onHighlightNodes }) {
     
     const handleClear = () => setMessages([])
     window.addEventListener('chat-cleared', handleClear)
-    return () => window.removeEventListener('chat-cleared', handleClear)
+    window.addEventListener('graph-updated', fetchHistory)
+    return () => {
+      window.removeEventListener('chat-cleared', handleClear)
+      window.removeEventListener('graph-updated', fetchHistory)
+    }
   }, [])
 
   const handleSend = async () => {

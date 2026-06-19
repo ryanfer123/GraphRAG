@@ -18,11 +18,17 @@ export default function DocumentSummary() {
 
   useEffect(() => {
     fetchStatus()
-    window.addEventListener('graph-updated', fetchStatus)
-    return () => window.removeEventListener('graph-updated', fetchStatus)
+    const handleGraphUpdate = () => {
+      fetchStatus()
+      setSelectedDocId('current_doc')
+    }
+    window.addEventListener('graph-updated', handleGraphUpdate)
+    return () => window.removeEventListener('graph-updated', handleGraphUpdate)
   }, [])
 
-  const selectedDoc = documents.find(d => d.id === selectedDocId) || documents[0]
+  const activeDoc = documents.find(d => d.is_active)
+  const fallbackDoc = activeDoc || documents[0]
+  const selectedDoc = documents.find(d => d.id === selectedDocId) || fallbackDoc
 
   if (!selectedDoc) {
     return null
