@@ -363,6 +363,18 @@ def get_chat_history():
         
     return {"history": history}
 
+@app.delete("/api/chat/history")
+def clear_chat_history():
+    doc_id = GLOBAL_STATE["active_doc_id"]
+    if not doc_id:
+        raise HTTPException(status_code=400, detail="No active document found.")
+        
+    chat_col = get_chat_history_collection()
+    if chat_col is not None:
+        chat_col.delete_many({"doc_id": doc_id})
+        
+    return {"status": "success"}
+
 # Serve React Frontend
 frontend_dist = os.path.join(os.path.dirname(__file__), "Mutli-Modal-Context-Aware-RAG", "frontend", "dist")
 if os.path.exists(frontend_dist):

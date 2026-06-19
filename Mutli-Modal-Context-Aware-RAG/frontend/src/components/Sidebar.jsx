@@ -6,6 +6,7 @@ import {
   Share2,
   Settings,
   Trash2,
+  PlusCircle,
 } from 'lucide-react'
 import axios from 'axios'
 import UploadCard from './UploadCard.jsx'
@@ -63,6 +64,16 @@ export default function Sidebar({ active, setActive }) {
     }
   }
 
+  const handleNewChat = async () => {
+    if (!confirm("Are you sure you want to clear the current chat history?")) return;
+    try {
+      await axios.delete('/api/chat/history');
+      window.dispatchEvent(new Event('chat-cleared'));
+    } catch (err) {
+      alert("Failed to clear chat: " + (err.response?.data?.detail || err.message));
+    }
+  }
+
   return (
     <aside className="sidebar">
       <nav className="sidebar-nav">
@@ -117,7 +128,10 @@ export default function Sidebar({ active, setActive }) {
         {active === 'history' && (
           <div className="sidebar-list">
             <p className="sidebar-list-title">Recent conversations</p>
-            <div className="history-row is-active">Current Session</div>
+            <button className="new-chat-btn" onClick={handleNewChat}>
+              <PlusCircle size={14} /> New Chat
+            </button>
+            <div className="history-row is-active" style={{marginTop: '8px'}}>Current Session</div>
             <div className="sidebar-hint" style={{margin: '0.5rem 1rem'}}>Chat history persists per session.</div>
           </div>
         )}

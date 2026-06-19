@@ -64,6 +64,10 @@ export default function ChatPanel({ onHighlightNodes }) {
       }
     }
     fetchHistory()
+    
+    const handleClear = () => setMessages([])
+    window.addEventListener('chat-cleared', handleClear)
+    return () => window.removeEventListener('chat-cleared', handleClear)
   }, [])
 
   const handleSend = async () => {
