@@ -88,8 +88,11 @@ def generate_answer(query: str, context_str: str) -> Dict[str, Any]:
         # Deduplicate the cited IDs while preserving the order they were referenced
         cited_ids = list(dict.fromkeys(cited_ids))
 
+        # Remove the raw citation tags from the text so they don't appear in the UI
+        clean_answer_text = re.sub(r"\s*\[ID:\s*([^\]]+)\]", "", answer_text).strip()
+
         return {
-            "answer": answer_text,
+            "answer": clean_answer_text,
             "cited_ids": cited_ids
         }
 
