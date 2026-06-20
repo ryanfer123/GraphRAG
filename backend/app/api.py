@@ -327,6 +327,9 @@ def get_graph():
     }
 
     for node_id, data in graph.nodes(data=True):
+        if doc_id != "global" and data.get("doc_id") != doc_id:
+            continue
+            
         el_type = data.get("element_type", "TextElement")
         frontend_type = type_map.get(el_type, "paragraph")
         
@@ -341,7 +344,13 @@ def get_graph():
             "status": "normal"
         })
 
+    # Keep a set of valid node IDs so we can filter edges
+    valid_node_ids = {n["id"] for n in nodes}
+
     for u, v, data in graph.edges(data=True):
+        if doc_id != "global" and (str(u) not in valid_node_ids or str(v) not in valid_node_ids):
+            continue
+            
         # The frontend graph panel expects 'semantic' for dotted orange links
         rel_type = data.get("relation_type", "structural")
         kind = "semantic" if "semantic" in rel_type else "structural"
