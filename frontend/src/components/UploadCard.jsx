@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { UploadCloud, FileCheck2, Loader2 } from 'lucide-react'
 import axios from 'axios'
 import './UploadCard.css'
@@ -10,6 +10,16 @@ export default function UploadCard({ onUploadSuccess }) {
   const [uploadStatus, setUploadStatus] = useState(null)
   const [progressMsg, setProgressMsg] = useState('')
   const [progressVal, setProgressVal] = useState(0)
+
+  useEffect(() => {
+    if (uploadStatus === 'error') {
+      const timer = setTimeout(() => {
+        setUploadStatus(null)
+        setFiles([])
+      }, 4000)
+      return () => clearTimeout(timer)
+    }
+  }, [uploadStatus])
 
   const processUpload = async (fileList) => {
     if (fileList.length === 0) return
@@ -130,6 +140,17 @@ export default function UploadCard({ onUploadSuccess }) {
           <p className="upload-note">
             {progressMsg ? progressMsg : "Starting upload stream..."}
           </p>
+        </div>
+      )}
+
+      {uploadStatus === 'error' && (
+        <div className="upload-error-overlay">
+          <div className="upload-error-popup">
+            <h3 style={{ margin: 0, fontSize: '18px' }}>Upload Failed</h3>
+            <p style={{ margin: '8px 0 0', fontSize: '13px' }}>
+              {progressMsg || "An error occurred while uploading the document. Please try again."}
+            </p>
+          </div>
         </div>
       )}
     </div>

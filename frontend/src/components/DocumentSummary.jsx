@@ -3,7 +3,7 @@ import { FileText, Sparkles, CheckCircle2, Tag, Layers, AlertCircle, RefreshCw }
 import axios from 'axios'
 import './DocumentSummary.css'
 
-export default function DocumentSummary() {
+export default function DocumentSummary({ isMainView = false }) {
   const [documents, setDocuments] = useState([])
   const [selectedDocId, setSelectedDocId] = useState('current_doc')
 
@@ -31,7 +31,7 @@ export default function DocumentSummary() {
          is_active: false,
          status: 'processing',
          pages: '?',
-         details: { size: 'Processing...', entitiesCount: 0, relationsCount: 0 },
+         details: { size: 'Processing...', entitiesCount: 0, relationsCount: 0, textCount: 0, tableCount: 0, imageCount: 0, category: 'Analyzing...' },
          summary: {
            summary: 'Document is currently being processed. This can take a few minutes for larger files...',
            highlights: ['Extracting text and tables...', 'Running vision models on images...', 'Building semantic network...'],
@@ -71,9 +71,14 @@ export default function DocumentSummary() {
   }
 
   return (
-    <section className="doc-summary-panel">
+    <section className={`doc-summary-panel ${isMainView ? 'is-main-view' : ''}`}>
       <div className="doc-summary-header">
-        <span className="doc-summary-title">Document Summary</span>
+        <div className="doc-summary-header-left">
+          <span className="doc-summary-title">Document Summary</span>
+          {details.category && typeof details.category === 'string' && (
+            <span className="doc-category-badge">{details.category}</span>
+          )}
+        </div>
         <div className="doc-summary-select-wrapper">
           <select 
             className="doc-summary-select" 
@@ -101,13 +106,29 @@ export default function DocumentSummary() {
             <span className="meta-card-value">{details.size || 'N/A'}</span>
           </div>
           <div className="meta-card">
-            <span className="meta-card-label">Entities</span>
+            <span className="meta-card-label">Graph Nodes</span>
             <span className="meta-card-value">{details.entitiesCount || 0}</span>
           </div>
           <div className="meta-card">
-            <span className="meta-card-label">Relations</span>
+            <span className="meta-card-label">Graph Edges</span>
             <span className="meta-card-value">{details.relationsCount || 0}</span>
           </div>
+          {isMainView && (
+            <>
+              <div className="meta-card">
+                <span className="meta-card-label">Paragraphs</span>
+                <span className="meta-card-value">{details.textCount || 0}</span>
+              </div>
+              <div className="meta-card">
+                <span className="meta-card-label">Tables</span>
+                <span className="meta-card-value">{details.tableCount || 0}</span>
+              </div>
+              <div className="meta-card">
+                <span className="meta-card-label">Images</span>
+                <span className="meta-card-value">{details.imageCount || 0}</span>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Ingestion status card */}

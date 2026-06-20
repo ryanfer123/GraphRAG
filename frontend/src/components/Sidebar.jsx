@@ -17,12 +17,20 @@ const NAV_ITEMS = [
   { id: 'documents', label: 'Documents', icon: FileText },
   { id: 'history', label: 'Chat History', icon: MessageSquare },
   { id: 'graph', label: 'Graph Explorer', icon: Share2 },
-  { id: 'settings', label: 'Settings', icon: Settings },
+  { id: 'settings', label: 'Pipeline Config', icon: Settings },
 ]
 
 export default function Sidebar({ active, setActive }) {
   const [documents, setDocuments] = useState([])
   const [activeDocId, setActiveDocId] = useState(null)
+  const [errorMsg, setErrorMsg] = useState(null)
+  const [docToDelete, setDocToDelete] = useState(null)
+
+  const showError = (msg) => {
+    setErrorMsg(msg)
+    if (window.errorTimeout) clearTimeout(window.errorTimeout)
+    window.errorTimeout = setTimeout(() => setErrorMsg(null), 4000)
+  }
 
   const [sessions, setSessions] = useState([])
   const [activeSessionId, setActiveSessionId] = useState(null)
@@ -74,7 +82,7 @@ export default function Sidebar({ active, setActive }) {
 
   const handleSwitch = async (docId, status) => {
     if (status !== 'indexed') {
-      alert("This document graph is no longer in memory. Please re-upload it to explore.");
+      showError("This document graph is no longer in memory. Please re-upload it to explore.");
       return;
     }
     try {
@@ -82,20 +90,25 @@ export default function Sidebar({ active, setActive }) {
       fetchStatus();
       window.dispatchEvent(new Event('graph-updated'));
     } catch (err) {
-      alert("Failed to switch document: " + (err.response?.data?.detail || err.message));
+      showError("Failed to switch document: " + (err.response?.data?.detail || err.message));
     }
   }
 
-  const handleDelete = async (e, docId) => {
-    e.stopPropagation();
-    if (!confirm("Are you sure you want to delete this document?")) return;
+  const confirmDelete = async (docId) => {
     try {
       await axios.delete(`/api/documents/${docId}`);
+      setDocToDelete(null);
       fetchStatus();
       window.dispatchEvent(new Event('graph-updated'));
     } catch (err) {
-      alert("Failed to delete document: " + (err.response?.data?.detail || err.message));
+      showError("Failed to delete document: " + (err.response?.data?.detail || err.message));
+      setDocToDelete(null);
     }
+  }
+
+  const handleDelete = (e, docId) => {
+    e.stopPropagation();
+    setDocToDelete(docId);
   }
 
   const handleNewChat = async () => {
@@ -105,7 +118,7 @@ export default function Sidebar({ active, setActive }) {
       window.dispatchEvent(new Event('chat-cleared'));
       window.dispatchEvent(new Event('graph-updated'));
     } catch (err) {
-      alert("Failed to start new chat: " + (err.response?.data?.detail || err.message));
+      showError("Failed to start new chat: " + (err.response?.data?.detail || err.message));
     }
   }
 
@@ -117,12 +130,30 @@ export default function Sidebar({ active, setActive }) {
       window.dispatchEvent(new Event('chat-cleared'));
       window.dispatchEvent(new Event('graph-updated'));
     } catch (err) {
-      alert("Failed to switch session: " + (err.response?.data?.detail || err.message));
+      showError("Failed to switch session: " + (err.response?.data?.detail || err.message));
     }
   }
 
   return (
     <aside className="sidebar">
+      {errorMsg && (
+        <div className="sidebar-toast">
+          {errorMsg}
+        </div>
+      )}
+      
+      {docToDelete && (
+        <div className="sidebar-confirm-overlay">
+          <div className="sidebar-confirm-box">
+            <p>Delete this document?</p>
+            <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+              <button className="confirm-btn danger" onClick={() => confirmDelete(docToDelete)}>Delete</button>
+              <button className="confirm-btn cancel" onClick={() => setDocToDelete(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <nav className="sidebar-nav">
         {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
           <button

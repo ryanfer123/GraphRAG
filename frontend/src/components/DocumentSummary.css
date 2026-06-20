@@ -9,6 +9,12 @@
   overflow: hidden;
 }
 
+.doc-summary-panel.is-main-view {
+  width: auto;
+  flex: 1;
+  border-left: none;
+}
+
 .doc-summary-header {
   display: flex;
   align-items: center;
@@ -22,6 +28,26 @@
   font-family: var(--font-display);
   font-size: 13px;
   font-weight: 600;
+}
+
+.doc-summary-header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.doc-category-badge {
+  background: var(--accent-2, #FFE4B5);
+  color: #000000;
+  padding: 2px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-radius: var(--radius-sm);
+  border: 2px solid #000000;
+  box-shadow: 2px 2px 0px #000000;
+  white-space: nowrap;
 }
 
 .doc-summary-select-wrapper {
@@ -68,12 +94,13 @@
 
 /* Meta Data Grid */
 .meta-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
 .meta-card {
+  flex: 1 1 80px;
   display: flex;
   flex-direction: column;
   align-items: center;

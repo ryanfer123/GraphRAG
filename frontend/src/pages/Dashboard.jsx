@@ -4,6 +4,7 @@ import Sidebar from '../components/Sidebar.jsx'
 import ChatPanel from '../components/ChatPanel.jsx'
 import GraphPanel from '../components/GraphPanel.jsx'
 import DocumentSummary from '../components/DocumentSummary.jsx'
+import ArchitecturePanel from '../components/ArchitecturePanel.jsx'
 import './Dashboard.css'
 
 export default function Dashboard() {
@@ -15,9 +16,10 @@ export default function Dashboard() {
       <Navbar />
       <div className="dashboard-body">
         <Sidebar active={activeTab} setActive={setActiveTab} />
-        {activeTab === 'graph' ? (
-          <GraphPanel highlightedNodes={highlightedNodes} isMainView={true} />
-        ) : (
+        {activeTab === 'graph' && <GraphPanel highlightedNodes={highlightedNodes} isMainView={true} />}
+        {activeTab === 'documents' && <DocumentSummary isMainView={true} />}
+        {activeTab === 'settings' && <ArchitecturePanel />}
+        {(activeTab !== 'graph' && activeTab !== 'documents' && activeTab !== 'settings') && (
           <>
             <ChatPanel onHighlightNodes={setHighlightedNodes} />
             <DocumentSummary />

@@ -11,11 +11,13 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [isAuthenticating, setIsAuthenticating] = useState(false)
   const [isRegistering, setIsRegistering] = useState(false)
+  const [error, setError] = useState('')
 
   const handleAuth = async (e) => {
     e.preventDefault()
     if (!email || !password) return
     setIsAuthenticating(true)
+    setError('')
     
     try {
       const endpoint = isRegistering ? '/api/register' : '/api/login'
@@ -23,7 +25,7 @@ export default function Login() {
       localStorage.setItem('token', res.data.token)
       navigate('/dashboard')
     } catch (err) {
-      alert("Authentication failed: " + (err.response?.data?.detail || err.message))
+      setError("Authentication failed: " + (err.response?.data?.detail || err.message))
     } finally {
       setIsAuthenticating(false)
     }
@@ -47,6 +49,12 @@ export default function Login() {
           <p className="login-subtitle">
             {isRegistering ? "Sign up to start building your graph." : "Sign in to query your knowledge graph."}
           </p>
+
+          {error && (
+            <div className="login-error-banner">
+              {error}
+            </div>
+          )}
           
           <div className="input-group">
             <Mail size={16} className="input-icon" />
@@ -87,7 +95,10 @@ export default function Login() {
               {isRegistering ? "Already have an account?" : "Don't have an account?"} 
               <span 
                 style={{color: 'var(--accent-2)', cursor: 'pointer', marginLeft: '5px', fontWeight: '600'}} 
-                onClick={() => setIsRegistering(!isRegistering)}
+                onClick={() => {
+                  setIsRegistering(!isRegistering)
+                  setError('')
+                }}
               >
                 {isRegistering ? "Sign In" : "Sign Up"}
               </span>

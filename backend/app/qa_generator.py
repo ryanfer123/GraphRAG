@@ -203,6 +203,7 @@ def generate_document_summary(text_content: str) -> Dict[str, Any]:
         '1. "summary": A brief 1-2 sentence high-level summary of the document.\n'
         '2. "highlights": A list of exactly 3 key takeaways or important bullet points.\n'
         '3. "entities": A list of 3 to 5 main entities, concepts, or topics discussed.\n'
+        '4. "category": A 2-3 word classification of the document type (e.g., "Research Paper", "Financial Report", "Legal Contract").\n'
         "You MUST output valid JSON only."
     )
     
@@ -242,5 +243,6 @@ def generate_document_summary(text_content: str) -> Dict[str, Any]:
         return {
             "summary": "Summary generation failed. Please ensure GROQ_API_KEY is set.",
             "highlights": ["Could not generate highlights"],
-            "entities": ["Unknown"]
+            "entities": ["Unknown"],
+            "category": "Unclassified"
         }

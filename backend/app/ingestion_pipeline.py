@@ -130,8 +130,18 @@ def process_document(file_path: str) -> List[BaseDocumentElement]:
                 )
                 extracted_elements.append(image_element)
                 
+            elif element_type == "Title":
+                text_element = TextElement(
+                    element_id=element_uuid,
+                    page_number=page_num,
+                    bounding_box=bbox,
+                    raw_content=raw_text
+                )
+                text_element.element_type = "TitleElement" # Set explicitly for graph builder
+                extracted_elements.append(text_element)
+                
             else:
-                # All other textual elements (Title, NarrativeText, ListItem, etc.)
+                # All other textual elements (NarrativeText, ListItem, etc.)
                 # We skip empty elements to avoid noise
                 if not raw_text.strip():
                     continue

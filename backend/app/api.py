@@ -45,11 +45,15 @@ GLOBAL_STATE = {
     "active_doc_id": None,
     "documents": {},
     "sessions": {},
+    "chat_history": [],
     "global_graph": global_graph,
     "global_collection": global_collection
 }
 
 UPLOAD_PROGRESS = {}
+
+# Local fallback for users when MongoDB is not configured
+LOCAL_USERS = {}
 
 class QueryRequest(BaseModel):
     query: str
@@ -75,12 +79,6 @@ def verify_password(password: str, salt_hex: str, hash_hex: str) -> bool:
 @app.post("/api/register")
 def register(request: AuthRequest):
     users_col = get_users_collection()
-    if users_col is None:
-        raise HTTPException(status_code=500, detail="Database not configured")
-        
-    if users_col.find_one({"email": request.email}):
-        raise HTTPException(status_code=400, detail="Email already registered")
-        
     hashed = hash_password(request.password)
     user_doc = {
         "email": request.email,
@@ -88,17 +86,44 @@ def register(request: AuthRequest):
         "password_hash": hashed["hash"],
         "created_at": datetime.utcnow()
     }
-    users_col.insert_one(user_doc)
+    
+    use_local = True
+    if users_col is not None:
+        try:
+            if users_col.find_one({"email": request.email}):
+                raise HTTPException(status_code=400, detail="Email already registered")
+            users_col.insert_one(user_doc)
+            use_local = False
+        except HTTPException:
+            raise
+        except Exception as e:
+            logging.warning(f"MongoDB unavailable during register, falling back to local memory: {e}")
+            use_local = True
+            
+    if use_local:
+        if request.email in LOCAL_USERS:
+            raise HTTPException(status_code=400, detail="Email already registered")
+        LOCAL_USERS[request.email] = user_doc
     
     return {"message": "Registration successful", "token": secrets.token_hex(32)}
 
 @app.post("/api/login")
 def login(request: AuthRequest):
     users_col = get_users_collection()
-    if users_col is None:
-        raise HTTPException(status_code=500, detail="Database not configured")
+    
+    user = None
+    use_local = True
+    if users_col is not None:
+        try:
+            user = users_col.find_one({"email": request.email})
+            use_local = False
+        except Exception as e:
+            logging.warning(f"MongoDB unavailable during login, falling back to local memory: {e}")
+            use_local = True
+            
+    if use_local:
+        user = LOCAL_USERS.get(request.email)
         
-    user = users_col.find_one({"email": request.email})
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
         
@@ -280,7 +305,8 @@ def get_graph():
     type_map = {
         "TextElement": "paragraph",
         "TableElement": "table",
-        "ImageElement": "figure"
+        "ImageElement": "figure",
+        "TitleElement": "heading"
     }
 
     for node_id, data in graph.nodes(data=True):
@@ -392,6 +418,26 @@ def chat_endpoint(request: QueryRequest):
                 ])
             except Exception as mongo_err:
                 logging.error(f"Failed to save chat to MongoDB: {mongo_err}")
+        else:
+            GLOBAL_STATE["chat_history"].extend([
+                {
+                    "_id": str(uuid.uuid4()),
+                    "doc_id": doc_id,
+                    "session_id": session_id,
+                    "role": "user",
+                    "content": request.query,
+                    "timestamp": datetime.utcnow()
+                },
+                {
+                    "_id": str(uuid.uuid4()),
+                    "doc_id": doc_id,
+                    "session_id": session_id,
+                    "role": "assistant",
+                    "content": result.get("answer", ""),
+                    "citations": citations,
+                    "timestamp": datetime.utcnow()
+                }
+            ])
 
         return {
             "answer": result.get("answer", ""),
@@ -434,6 +480,10 @@ def get_status():
                             "size": d.get("size", "Unknown"),
                             "entitiesCount": stats.get("nodes", 0),
                             "relationsCount": stats.get("edges", 0),
+                            "textCount": stats.get("text", 0),
+                            "tableCount": stats.get("tables", 0),
+                            "imageCount": stats.get("images", 0),
+                            "category": summary_data.get("category", "Document"),
                             "summary": summary_data.get("summary", "Document processed."),
                             "highlights": summary_data.get("highlights", []),
                             "entities": summary_data.get("entities", [])
@@ -450,6 +500,10 @@ def get_status():
             summary_data = doc_data.get("summary_data", {})
             pages = max([data.get("page_number", 1) for _, data in graph.nodes(data=True)] + [1])
             
+            textCount = sum(1 for _, data in graph.nodes(data=True) if data.get("element_type") == "TextElement")
+            tableCount = sum(1 for _, data in graph.nodes(data=True) if data.get("element_type") == "TableElement")
+            imageCount = sum(1 for _, data in graph.nodes(data=True) if data.get("element_type") == "ImageElement")
+
             result_docs.append({
                 "id": doc_id,
                 "name": doc_data.get("doc_name", "Unknown"),
@@ -460,6 +514,10 @@ def get_status():
                     "size": doc_data.get("doc_size", "Unknown"),
                     "entitiesCount": graph.number_of_nodes(),
                     "relationsCount": graph.number_of_edges(),
+                    "textCount": textCount,
+                    "tableCount": tableCount,
+                    "imageCount": imageCount,
+                    "category": summary_data.get("category", "Document"),
                     "summary": summary_data.get("summary", "Document processed."),
                     "highlights": summary_data.get("highlights", []),
                     "entities": summary_data.get("entities", [])
@@ -503,13 +561,19 @@ def get_chat_history():
     if not doc_id:
         return {"history": []}
         
-    chat_col = get_chat_history_collection()
-    if chat_col is None:
-        return {"history": []}
-        
     session_id = GLOBAL_STATE["sessions"].get(doc_id)
     if not session_id:
         return {"history": []}
+
+    chat_col = get_chat_history_collection()
+    if chat_col is None:
+        history = []
+        for msg in GLOBAL_STATE["chat_history"]:
+            if msg["doc_id"] == doc_id and msg["session_id"] == session_id:
+                msg_copy = msg.copy()
+                msg_copy["timestamp"] = msg_copy["timestamp"].isoformat()
+                history.append(msg_copy)
+        return {"history": history}
 
     try:
         cursor = chat_col.find({"doc_id": doc_id, "session_id": session_id}).sort("timestamp", 1)
@@ -526,13 +590,41 @@ def get_chat_history():
 
 @app.get("/api/chat/sessions")
 def get_chat_sessions():
-    chat_col = get_chat_history_collection()
-    if chat_col is None:
-        return {"sessions": [], "active_session_id": None}
-        
     doc_id = GLOBAL_STATE["active_doc_id"]
     active_session_id = GLOBAL_STATE["sessions"].get(doc_id) if doc_id else None
-    
+
+    chat_col = get_chat_history_collection()
+    if chat_col is None:
+        sessions_dict = {}
+        for msg in GLOBAL_STATE["chat_history"]:
+            sid = msg["session_id"]
+            if sid not in sessions_dict:
+                sessions_dict[sid] = {"first_message": msg["timestamp"], "doc_id": msg["doc_id"]}
+            elif msg["timestamp"] < sessions_dict[sid]["first_message"]:
+                sessions_dict[sid]["first_message"] = msg["timestamp"]
+        
+        sessions = []
+        for sid, sinfo in sessions_dict.items():
+            session_doc_id = sinfo["doc_id"]
+            doc_name = "Unknown Document"
+            
+            if session_doc_id == "global":
+                doc_name = "Global Knowledge Base"
+            elif session_doc_id in GLOBAL_STATE["documents"]:
+                doc_name = GLOBAL_STATE["documents"][session_doc_id].get("doc_name", "Unknown Document")
+                    
+            sessions.append({
+                "id": sid,
+                "created_at": sinfo["first_message"].isoformat(),
+                "doc_id": session_doc_id,
+                "doc_name": doc_name
+            })
+            
+        return {
+            "sessions": sorted(sessions, key=lambda x: x["created_at"], reverse=True),
+            "active_session_id": active_session_id
+        }
+        
     try:
         pipeline = [
             {"$group": {

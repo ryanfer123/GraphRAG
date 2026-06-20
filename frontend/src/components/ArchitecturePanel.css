@@ -1,0 +1,226 @@
+.arch-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.arch-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 40px;
+  overflow-y: auto;
+}
+
+.arch-header {
+  margin-bottom: 40px;
+  text-align: center;
+}
+
+.arch-header h2 {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.arch-header p {
+  color: var(--text-dim);
+  font-size: 15px;
+}
+
+.arch-diagram {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: 800px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.arch-stage {
+  width: 100%;
+  background: white;
+  border: 2px solid #000;
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: 4px 4px 0px #000;
+  position: relative;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.arch-stage:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0px #000;
+}
+
+.arch-stage-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  color: var(--accent-2);
+}
+
+.arch-stage-header h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.arch-card-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 16px;
+}
+
+.arch-card {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  transition: background 0.2s;
+}
+
+.arch-card:hover {
+  background: var(--surface-2);
+}
+
+.arch-card h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.arch-card p {
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.arch-connector {
+  width: 2px;
+  height: 30px;
+  background: #000;
+  position: relative;
+  margin: 10px 0;
+}
+
+.arch-connector::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: -4px;
+  border-width: 5px 5px 0;
+  border-style: solid;
+  border-color: #000 transparent transparent transparent;
+}
+
+.arch-card {
+  cursor: pointer;
+}
+
+.arch-card.is-selected {
+  border-color: var(--accent-2);
+  box-shadow: 2px 2px 0px var(--accent-2);
+  background: var(--surface-2);
+}
+
+.arch-details-wrapper {
+  flex-shrink: 0;
+  overflow: hidden;
+  z-index: 10;
+  background: var(--surface-1);
+}
+
+.arch-details-panel {
+  width: 300px;
+  height: 100%;
+  background: var(--surface-1);
+  border-left: 2px solid #000000;
+  padding: 24px 20px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.arch-details-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.arch-details-type {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  background: rgba(110,124,255,0.12);
+  color: #4f46e5;
+  font-weight: 600;
+}
+
+.arch-details-close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  display: flex;
+  padding: 2px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.arch-details-close:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+.arch-details-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+
+.arch-details-content {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.6;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.arch-details-sub {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.arch-tech-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.arch-tech-badge {
+  font-size: 11px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+}
