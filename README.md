@@ -116,3 +116,14 @@ This project successfully implements all the bonus features requested in the hac
    - The `/api/upload` endpoint defers the heavy ingestion workload (MLX embedding and Unstructured layout extraction) to FastAPI `BackgroundTasks`.
    - A Server-Sent Events (SSE) `/api/upload/stream/{doc_id}` endpoint broadcasts ingestion progress to the frontend.
    - `UploadCard.jsx` listens to the SSE stream and renders an animated progress bar, giving the user real-time feedback on extraction, graph building, and summarization phases.
+
+---
+
+## ✨ Latest Polish & Updates
+- **Document-Specific RAG Filtering:** Chat history and retrieval now correctly filter context by `doc_id` to prevent cross-document leakage when analyzing a single document.
+- **Graph Explorer Overhaul:** Replaced the chaotic BFS DAG layout with a **Sequential Wrapping Grid** layout, perfectly mapping the native document reading order and preventing disconnected sections from rendering as separate graphs.
+- **Robust DOCX Parsing:** Explicitly integrated `unstructured[docx]` (`python-docx`) into the pipeline for seamless Word Document extraction alongside PDFs.
+- **UI & UX Refinements:**
+  - Added beautiful center-aligned empty states for the Chat History and Graph Explorer when no documents are active.
+  - Implemented an interactive "Try Again" error handling flow for failed document uploads.
+  - Aligned Dropdown components and streamlined the "New Chat" button styling for a premium aesthetic.
