@@ -7,9 +7,9 @@
   --text-dim: #64748b;
   --accent: #ff9f43;
   --accent-2: #fdba74;
-  --node-blue: #fdba74;
-  --node-green: #ff9f43;
-  --node-yellow: #ff5e5b;
+  --node-normal: #fdba74;
+  --node-used: #f59e0b;
+  --node-selected: #6366f1;
   --danger: #ef4444;
 
   --font-display: 'Space Grotesk', sans-serif;

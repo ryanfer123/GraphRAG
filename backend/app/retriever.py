@@ -36,7 +36,7 @@ def get_reranker_model() -> CrossEncoder:
     return _reranker_model
 
 
-def retrieve_context(query: str, collection: Any, graph: nx.DiGraph, top_k: int = 6) -> str:
+def retrieve_context(query: str, collection: Any, graph: nx.DiGraph, doc_id: str = None, top_k: int = 6) -> str:
     """
     Executes a vector search, expands context via a graph walk, reranks the 
     candidates using a cross-encoder, and returns a formatted context string.
@@ -45,6 +45,7 @@ def retrieve_context(query: str, collection: Any, graph: nx.DiGraph, top_k: int 
         query (str): The user's natural language question.
         collection (Any): The initialized ChromaDB collection.
         graph (nx.DiGraph): The populated NetworkX knowledge graph.
+        doc_id (str): Optional document ID to filter the search.
         top_k (int): The number of top semantic neighbors to retrieve initially.
 
     Returns:
@@ -64,10 +65,15 @@ def retrieve_context(query: str, collection: Any, graph: nx.DiGraph, top_k: int 
     query_embedding = raw_query_emb.tolist()
 
     try:
-        results = collection.query(
-            query_embeddings=[query_embedding],
-            n_results=top_k
-        )
+        query_kwargs = {
+            "query_embeddings": [query_embedding],
+            "n_results": top_k
+        }
+        
+        if doc_id and doc_id != "global":
+            query_kwargs["where"] = {"doc_id": doc_id}
+            
+        results = collection.query(**query_kwargs)
         # Results are wrapped in a list because we submitted a single query
         seed_ids = results.get("ids", [[]])[0]
     except Exception as e:

@@ -22,7 +22,7 @@ logging.basicConfig(level=logging.INFO)
 CITATION_PATTERN = re.compile(r"([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})")
 
 
-def generate_answer(query: str, context_str: str) -> Dict[str, Any]:
+def generate_answer(query: str, context_str: str, answer_style: str = "default") -> Dict[str, Any]:
     """
     Passes the retrieved context and user query to a Groq LLM to generate an answer.
     Extracts all cited IDs from the output to provide graph traceability.
@@ -37,6 +37,18 @@ def generate_answer(query: str, context_str: str) -> Dict[str, Any]:
             - 'cited_ids': A list of extracted source ID strings.
     """
     logger.info(f"Generating QA response for query: '{query}'")
+
+    
+    style_rule = (
+        "6. CONCISENESS & STRUCTURE (CRITICAL): Your answer MUST be extremely concise, using bullet points "
+        "to structure your response. Avoid all unnecessary fluff, introductory phrases, or long paragraphs. "
+    )
+    if answer_style == "concise":
+        style_rule = "6. CONCISENESS (CRITICAL): Your answer MUST be extremely concise and straight to the point. Do not add any extra fluff."
+    elif answer_style == "academic":
+        style_rule = "6. TONE & STRUCTURE (CRITICAL): Your answer MUST be in a scholarly, academic, and formal tone, well-structured, using precise terminology."
+    elif answer_style == "formal":
+        style_rule = "6. TONE & STRUCTURE (CRITICAL): Your answer MUST be in a formal, professional tone, avoiding slang or overly casual language."
 
     system_prompt = (
         "You are a highly skilled, strict document analyst. Your task is to answer the user's "
@@ -56,8 +68,8 @@ def generate_answer(query: str, context_str: str) -> Dict[str, Any]:
         "(e.g., a table AND a chart), you MUST cite each specifically. Do NOT collapse them into a single ID.\n"
         "5. DECOMPOSE: When the question involves cross-referencing, explicitly state which specific "
         "source each number comes from, and place the tag right next to that number.\n"
-        "6. CONCISENESS & STRUCTURE (CRITICAL): Your answer MUST be extremely concise, using bullet points "
-        "to structure your response. Avoid all unnecessary fluff, introductory phrases, or long paragraphs. "
+        f"{style_rule}"
+
         "Directly state the facts and optimize the answer for a quick, highly readable scan.\n\n"
         "EXAMPLE OF GOOD CITATION:\n"
         "- Total Q3 revenue: $158K (Fig. on Page 2) [ID: image-uuid-123].\n"
@@ -80,7 +92,7 @@ def generate_answer(query: str, context_str: str) -> Dict[str, Any]:
 
         try:
             completion = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+                model="llama-3.1-8b-instant",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_message}
@@ -89,9 +101,9 @@ def generate_answer(query: str, context_str: str) -> Dict[str, Any]:
                 max_tokens=1024,
             )
         except Exception as groq_err:
-            logger.warning(f"llama-3.3-70b-versatile failed: {groq_err}. Falling back to llama-3.1-8b-instant")
+            logger.warning(f"llama-3.1-8b-instant failed: {groq_err}. Falling back to llama3-8b-8192")
             completion = client.chat.completions.create(
-                model="llama-3.1-8b-instant",
+                model="llama3-8b-8192",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_message}
@@ -149,7 +161,7 @@ def decompose_query(query: str) -> List[str]:
         client = Groq()
         try:
             completion = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+                model="llama-3.1-8b-instant",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": query}
@@ -159,9 +171,9 @@ def decompose_query(query: str) -> List[str]:
                 response_format={"type": "json_object"}
             )
         except Exception as groq_err:
-            logger.warning(f"llama-3.3-70b-versatile failed: {groq_err}. Falling back to llama-3.1-8b-instant")
+            logger.warning(f"llama-3.1-8b-instant failed: {groq_err}. Falling back to llama3-8b-8192")
             completion = client.chat.completions.create(
-                model="llama-3.1-8b-instant",
+                model="llama3-8b-8192",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": query}
@@ -211,7 +223,7 @@ def generate_document_summary(text_content: str) -> Dict[str, Any]:
         client = Groq()
         try:
             completion = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+                model="llama-3.1-8b-instant",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     # Truncate to first ~15,000 characters to ensure we fit in context window easily
@@ -222,9 +234,9 @@ def generate_document_summary(text_content: str) -> Dict[str, Any]:
                 response_format={"type": "json_object"}
             )
         except Exception as groq_err:
-            logger.warning(f"llama-3.3-70b-versatile failed: {groq_err}. Falling back to llama-3.1-8b-instant")
+            logger.warning(f"llama-3.1-8b-instant failed: {groq_err}. Falling back to llama3-8b-8192")
             completion = client.chat.completions.create(
-                model="llama-3.1-8b-instant",
+                model="llama3-8b-8192",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     # Truncate to first ~15,000 characters to ensure we fit in context window easily

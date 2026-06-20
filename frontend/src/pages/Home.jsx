@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { Brain, ArrowRight, FileSearch, Share2, Sparkles } from 'lucide-react'
+import { Brain, ArrowRight, FileSearch, Share2, Sparkles, Coins } from 'lucide-react'
 import NetworkBackground from '../components/NetworkBackground.jsx'
 import './Home.css'
 
@@ -38,17 +38,22 @@ export default function Home() {
           <div className="home-feature">
             <FileSearch size={18} />
             <h3>Multi-Modal Ingestion</h3>
-            <p>Extracts text, structured tables, and images from documents, linking them into a unified knowledge graph.</p>
+            <p>Breaks down data silos by extracting text, tables, and images, linking them into a unified, relationship-aware knowledge graph.</p>
           </div>
           <div className="home-feature">
             <Share2 size={18} />
             <h3>Graph-Augmented Retrieval</h3>
-            <p>Combines vector similarity with graph traversal to retrieve deep, interconnected context across your entire document.</p>
+            <p>Avoids arbitrary chunking by traversing graph edges to synthesize distributed context and resolve cross-section references.</p>
           </div>
           <div className="home-feature">
             <Sparkles size={18} />
             <h3>Verifiable Citations</h3>
-            <p>Eliminates hallucinations by tracing every answer back to the exact paragraph, table, or figure used.</p>
+            <p>Eliminates hallucinations with grounded answers, providing full explainability by highlighting the exact source nodes used.</p>
+          </div>
+          <div className="home-feature">
+            <Coins size={18} />
+            <h3>Token-Free Parsing</h3>
+            <p>Achieves maximum cost-efficiency by using local, lightweight capabilities for extraction instead of expensive API tokens.</p>
           </div>
         </div>
       </main>

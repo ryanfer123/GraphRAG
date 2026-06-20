@@ -57,6 +57,7 @@ LOCAL_USERS = {}
 
 class QueryRequest(BaseModel):
     query: str
+    answer_style: Optional[str] = "default"
 
 class SwitchRequest(BaseModel):
     doc_id: str
@@ -286,6 +287,22 @@ def switch_document(request: SwitchRequest):
     else:
         raise HTTPException(status_code=404, detail="Document graph not currently in memory. Please re-upload.")
 
+def get_or_restore_session_id(doc_id: str) -> str:
+    if not doc_id:
+        return None
+    session_id = GLOBAL_STATE["sessions"].get(doc_id)
+    if not session_id:
+        chat_col = get_chat_history_collection()
+        if chat_col is not None:
+            try:
+                latest = chat_col.find_one({"doc_id": doc_id}, sort=[("timestamp", -1)])
+                if latest:
+                    session_id = latest["session_id"]
+                    GLOBAL_STATE["sessions"][doc_id] = session_id
+            except Exception as e:
+                logging.error(f"Failed to restore session from MongoDB: {e}")
+    return session_id
+
 @app.get("/api/graph")
 def get_graph():
     doc_id = GLOBAL_STATE["active_doc_id"]
@@ -361,12 +378,12 @@ def chat_endpoint(request: QueryRequest):
         sub_queries = decompose_query(request.query)
         context_parts = []
         for sq in sub_queries:
-            ctx = retrieve_context(sq, collection, graph)
+            ctx = retrieve_context(sq, collection, graph, doc_id=doc_id)
             if ctx and ctx not in context_parts:
                 context_parts.append(ctx)
                 
         context_str = "\n\n".join(context_parts)
-        result = generate_answer(request.query, context_str)
+        result = generate_answer(request.query, context_str, request.answer_style)
         
         citations = []
         cited_ids = result.get("cited_ids", [])
@@ -391,12 +408,13 @@ def chat_endpoint(request: QueryRequest):
                     "content": content
                 })
 
-        session_id = GLOBAL_STATE["sessions"].get(doc_id)
+        session_id = get_or_restore_session_id(doc_id)
         if not session_id:
             session_id = str(uuid.uuid4())
             GLOBAL_STATE["sessions"][doc_id] = session_id
 
         chat_col = get_chat_history_collection()
+        saved_to_db = False
         if chat_col is not None:
             try:
                 chat_col.insert_many([
@@ -416,9 +434,11 @@ def chat_endpoint(request: QueryRequest):
                         "timestamp": datetime.utcnow()
                     }
                 ])
+                saved_to_db = True
             except Exception as mongo_err:
                 logging.error(f"Failed to save chat to MongoDB: {mongo_err}")
-        else:
+                
+        if not saved_to_db:
             GLOBAL_STATE["chat_history"].extend([
                 {
                     "_id": str(uuid.uuid4()),
@@ -462,8 +482,11 @@ def get_status():
                     doc_id_str = str(d["_id"])
                     if doc_id_str in GLOBAL_STATE["documents"]:
                         status = "indexed"
-                        graph = GLOBAL_STATE["documents"][doc_id_str]["graph"]
-                        pages = max([data.get("page_number", 1) for _, data in graph.nodes(data=True)] + [1])
+                        doc_data = GLOBAL_STATE["documents"][doc_id_str]
+                        if "pages_cache" not in doc_data:
+                            graph = doc_data["graph"]
+                            doc_data["pages_cache"] = max([data.get("page_number", 1) for _, data in graph.nodes(data=True)] + [1])
+                        pages = doc_data["pages_cache"]
                     else:
                         status = "inactive"
                         pages = d.get("stats", {}).get("max_page", d.get("stats", {}).get("text", 0) // 5 + 1)
@@ -496,27 +519,37 @@ def get_status():
     # Always merge in-memory GLOBAL_STATE documents that aren't in MongoDB yet
     for doc_id, doc_data in GLOBAL_STATE["documents"].items():
         if doc_id not in seen_ids:
-            graph = doc_data["graph"]
+            if "stats_cache" not in doc_data:
+                graph = doc_data["graph"]
+                pages = max([data.get("page_number", 1) for _, data in graph.nodes(data=True)] + [1])
+                textCount = sum(1 for _, data in graph.nodes(data=True) if data.get("element_type") == "TextElement")
+                tableCount = sum(1 for _, data in graph.nodes(data=True) if data.get("element_type") == "TableElement")
+                imageCount = sum(1 for _, data in graph.nodes(data=True) if data.get("element_type") == "ImageElement")
+                doc_data["stats_cache"] = {
+                    "pages": pages,
+                    "textCount": textCount,
+                    "tableCount": tableCount,
+                    "imageCount": imageCount,
+                    "entitiesCount": graph.number_of_nodes(),
+                    "relationsCount": graph.number_of_edges()
+                }
+                
+            c = doc_data["stats_cache"]
             summary_data = doc_data.get("summary_data", {})
-            pages = max([data.get("page_number", 1) for _, data in graph.nodes(data=True)] + [1])
-            
-            textCount = sum(1 for _, data in graph.nodes(data=True) if data.get("element_type") == "TextElement")
-            tableCount = sum(1 for _, data in graph.nodes(data=True) if data.get("element_type") == "TableElement")
-            imageCount = sum(1 for _, data in graph.nodes(data=True) if data.get("element_type") == "ImageElement")
 
             result_docs.append({
                 "id": doc_id,
                 "name": doc_data.get("doc_name", "Unknown"),
                 "status": "indexed",
-                "pages": pages,
+                "pages": c["pages"],
                 "is_active": doc_id == GLOBAL_STATE["active_doc_id"],
                 "details": {
                     "size": doc_data.get("doc_size", "Unknown"),
-                    "entitiesCount": graph.number_of_nodes(),
-                    "relationsCount": graph.number_of_edges(),
-                    "textCount": textCount,
-                    "tableCount": tableCount,
-                    "imageCount": imageCount,
+                    "entitiesCount": c["entitiesCount"],
+                    "relationsCount": c["relationsCount"],
+                    "textCount": c["textCount"],
+                    "tableCount": c["tableCount"],
+                    "imageCount": c["imageCount"],
                     "category": summary_data.get("category", "Document"),
                     "summary": summary_data.get("summary", "Document processed."),
                     "highlights": summary_data.get("highlights", []),
@@ -561,12 +594,28 @@ def get_chat_history():
     if not doc_id:
         return {"history": []}
         
-    session_id = GLOBAL_STATE["sessions"].get(doc_id)
+    session_id = get_or_restore_session_id(doc_id)
     if not session_id:
         return {"history": []}
 
     chat_col = get_chat_history_collection()
-    if chat_col is None:
+    history_fetched = False
+    
+    if chat_col is not None:
+        try:
+            cursor = chat_col.find({"doc_id": doc_id, "session_id": session_id}).sort("timestamp", 1)
+            history = []
+            for msg in cursor:
+                msg["_id"] = str(msg["_id"])
+                msg["timestamp"] = msg["timestamp"].isoformat()
+                history.append(msg)
+                
+            history_fetched = True
+            return {"history": history}
+        except Exception as e:
+            logging.error(f"Failed to fetch history from MongoDB: {e}")
+            
+    if not history_fetched:
         history = []
         for msg in GLOBAL_STATE["chat_history"]:
             if msg["doc_id"] == doc_id and msg["session_id"] == session_id:
@@ -575,43 +624,73 @@ def get_chat_history():
                 history.append(msg_copy)
         return {"history": history}
 
-    try:
-        cursor = chat_col.find({"doc_id": doc_id, "session_id": session_id}).sort("timestamp", 1)
-        history = []
-        for msg in cursor:
-            msg["_id"] = str(msg["_id"])
-            msg["timestamp"] = msg["timestamp"].isoformat()
-            history.append(msg)
-            
-        return {"history": history}
-    except Exception as e:
-        logging.error(f"Failed to fetch history from MongoDB: {e}")
-        return {"history": []}
-
 @app.get("/api/chat/sessions")
 def get_chat_sessions():
     doc_id = GLOBAL_STATE["active_doc_id"]
-    active_session_id = GLOBAL_STATE["sessions"].get(doc_id) if doc_id else None
+    active_session_id = get_or_restore_session_id(doc_id)
 
     chat_col = get_chat_history_collection()
-    if chat_col is None:
+    sessions_fetched = False
+    
+    if chat_col is not None:
+        try:
+            pipeline = [
+                {"$sort": {"timestamp": 1}},
+                {"$group": {
+                    "_id": "$session_id",
+                    "first_message": {"$first": "$timestamp"},
+                    "doc_id": {"$first": "$doc_id"},
+                    "first_query": {
+                        "$first": {
+                            "$cond": [{"$eq": ["$role", "user"]}, "$content", None]
+                        }
+                    }
+                }}
+            ]
+            
+            sessions_cursor = chat_col.aggregate(pipeline)
+            sessions = []
+            docs_col = get_documents_collection()
+            
+            for s in sessions_cursor:
+                session_doc_id = s.get("doc_id")
+                first_query = s.get("first_query")
+                doc_name = first_query if first_query else "New Conversation"
+                
+                sessions.append({
+                    "id": s["_id"],
+                    "created_at": s["first_message"].isoformat(),
+                    "doc_id": session_doc_id,
+                    "doc_name": doc_name
+                })
+                
+            return {
+                "sessions": sorted(sessions, key=lambda x: x["created_at"], reverse=True),
+                "active_session_id": active_session_id
+            }
+        except Exception as e:
+            logging.error(f"Failed to fetch sessions from MongoDB: {e}")
+            
+    if not sessions_fetched:
         sessions_dict = {}
         for msg in GLOBAL_STATE["chat_history"]:
             sid = msg["session_id"]
             if sid not in sessions_dict:
-                sessions_dict[sid] = {"first_message": msg["timestamp"], "doc_id": msg["doc_id"]}
+                sessions_dict[sid] = {
+                    "first_message": msg["timestamp"], 
+                    "doc_id": msg["doc_id"],
+                    "first_query": msg["content"] if msg["role"] == "user" else None
+                }
             elif msg["timestamp"] < sessions_dict[sid]["first_message"]:
                 sessions_dict[sid]["first_message"] = msg["timestamp"]
+                if msg["role"] == "user":
+                    sessions_dict[sid]["first_query"] = msg["content"]
         
         sessions = []
         for sid, sinfo in sessions_dict.items():
             session_doc_id = sinfo["doc_id"]
-            doc_name = "Unknown Document"
-            
-            if session_doc_id == "global":
-                doc_name = "Global Knowledge Base"
-            elif session_doc_id in GLOBAL_STATE["documents"]:
-                doc_name = GLOBAL_STATE["documents"][session_doc_id].get("doc_name", "Unknown Document")
+            first_query = sinfo.get("first_query")
+            doc_name = first_query if first_query else "New Conversation"
                     
             sessions.append({
                 "id": sid,
@@ -624,47 +703,6 @@ def get_chat_sessions():
             "sessions": sorted(sessions, key=lambda x: x["created_at"], reverse=True),
             "active_session_id": active_session_id
         }
-        
-    try:
-        pipeline = [
-            {"$group": {
-                "_id": "$session_id",
-                "first_message": {"$min": "$timestamp"},
-                "doc_id": {"$first": "$doc_id"}
-            }}
-        ]
-        
-        sessions_cursor = chat_col.aggregate(pipeline)
-        sessions = []
-        docs_col = get_documents_collection()
-        
-        for s in sessions_cursor:
-            session_doc_id = s.get("doc_id")
-            doc_name = "Unknown Document"
-            
-            if session_doc_id == "global":
-                doc_name = "Global Knowledge Base"
-            elif session_doc_id in GLOBAL_STATE["documents"]:
-                doc_name = GLOBAL_STATE["documents"][session_doc_id].get("doc_name", "Unknown Document")
-            elif docs_col is not None:
-                db_doc = docs_col.find_one({"_id": session_doc_id})
-                if db_doc:
-                    doc_name = db_doc.get("name", "Unknown Document")
-                    
-            sessions.append({
-                "id": s["_id"],
-                "created_at": s["first_message"].isoformat(),
-                "doc_id": session_doc_id,
-                "doc_name": doc_name
-            })
-            
-        return {
-            "sessions": sorted(sessions, key=lambda x: x["created_at"], reverse=True),
-            "active_session_id": active_session_id
-        }
-    except Exception as e:
-        logging.error(f"Failed to fetch sessions from MongoDB: {e}")
-        return {"sessions": [], "active_session_id": active_session_id}
 
 class SessionSwitchRequest(BaseModel):
     session_id: str

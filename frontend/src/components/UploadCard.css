@@ -128,3 +128,30 @@
   from { transform: scale(0.85); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
 }
+
+.upload-error-btn {
+  padding: 6px 16px;
+  border: 2px solid #000000;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 2px 2px 0px #000000;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.upload-error-btn:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0px #000000;
+}
+
+.btn-cancel {
+  background: #ffffff;
+  color: #000000;
+}
+
+.btn-retry {
+  background: var(--accent-2, #fdba74);
+  color: #000000;
+}

@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Database, FileText, BrainCircuit, Search, Cpu, Network, X, Layers, Link } from 'lucide-react'
+import { Database, FileText, BrainCircuit, Search, Cpu, Network, X, Layers, Link, Image as ImageIcon } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import './ArchitecturePanel.css'
 
@@ -10,6 +10,13 @@ const ARCH_DETAILS = {
     type: 'Parsing',
     content: 'We use unstructured.io to parse complex document layouts. It identifies Headings, Paragraphs, Tables, and Images, returning them in a structured sequence with bounding boxes and page metadata.',
     tech: 'unstructured, pdfminer'
+  },
+  vision: {
+    title: 'Vision-Language Model',
+    icon: ImageIcon,
+    type: 'Vision Extraction',
+    content: 'Every extracted image and chart is passed through Qwen2-VL. It reads the visual data (bar graphs, pie charts, etc.) and translates it into a semantic text description which is injected as an Image Node into the graph.',
+    tech: 'Qwen2-VL-2B-Instruct, MLX'
   },
   extraction_structural: {
     title: 'Structural Edges',
@@ -79,9 +86,15 @@ export default function ArchitecturePanel() {
             <FileText size={20} />
             <h3>1. Document Ingestion</h3>
           </div>
-          <div className={`arch-card ${selectedCard === 'ingestion' ? 'is-selected' : ''}`} onClick={() => setSelectedCard('ingestion')}>
-            <h4><FileText size={18} /> Partitioning & Parsing</h4>
-            <p>Unstructured.io extracts text, tables, and images from raw PDFs and DOCXs.</p>
+          <div className="arch-card-group">
+            <div className={`arch-card ${selectedCard === 'ingestion' ? 'is-selected' : ''}`} onClick={() => setSelectedCard('ingestion')}>
+              <h4><FileText size={18} /> Partitioning & Parsing</h4>
+              <p>Unstructured.io extracts text, tables, and images from raw PDFs and DOCXs.</p>
+            </div>
+            <div className={`arch-card ${selectedCard === 'vision' ? 'is-selected' : ''}`} onClick={() => setSelectedCard('vision')}>
+              <h4><ImageIcon size={18} /> Vision Extraction</h4>
+              <p>Qwen2-VL translates charts and images into semantic text descriptions.</p>
+            </div>
           </div>
         </div>
 

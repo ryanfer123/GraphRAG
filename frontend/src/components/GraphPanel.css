@@ -147,3 +147,32 @@
 .react-flow__minimap svg {
   display: block;
 }
+
+.graph-empty-state {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(2px);
+  z-index: 10;
+  text-align: center;
+}
+
+.graph-empty-state h3 {
+  font-family: var(--font-display);
+  font-size: 18px;
+  margin: 0 0 8px 0;
+  color: var(--text);
+}
+
+.graph-empty-state p {
+  font-size: 14px;
+  color: var(--text-dim);
+  margin: 0;
+}

@@ -12,13 +12,7 @@ export default function UploadCard({ onUploadSuccess }) {
   const [progressVal, setProgressVal] = useState(0)
 
   useEffect(() => {
-    if (uploadStatus === 'error') {
-      const timer = setTimeout(() => {
-        setUploadStatus(null)
-        setFiles([])
-      }, 4000)
-      return () => clearTimeout(timer)
-    }
+    // The error popup now requires manual dismissal or retry
   }, [uploadStatus])
 
   const processUpload = async (fileList) => {
@@ -147,9 +141,26 @@ export default function UploadCard({ onUploadSuccess }) {
         <div className="upload-error-overlay">
           <div className="upload-error-popup">
             <h3 style={{ margin: 0, fontSize: '18px' }}>Upload Failed</h3>
-            <p style={{ margin: '8px 0 0', fontSize: '13px' }}>
+            <p style={{ margin: '8px 0 16px', fontSize: '13px' }}>
               {progressMsg || "An error occurred while uploading the document. Please try again."}
             </p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+              <button 
+                className="upload-error-btn btn-cancel"
+                onClick={() => {
+                  setUploadStatus(null);
+                  setFiles([]);
+                }}
+              >
+                Cancel
+              </button>
+              <button 
+                className="upload-error-btn btn-retry"
+                onClick={() => processUpload(files)}
+              >
+                Try Again
+              </button>
+            </div>
           </div>
         </div>
       )}

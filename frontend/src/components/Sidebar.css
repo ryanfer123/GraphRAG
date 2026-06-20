@@ -170,12 +170,13 @@
 .new-chat-btn {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  width: calc(100% - 20px);
-  margin: 0 10px;
+  width: 100%;
+  margin: 0 0 8px 0;
   padding: 8px 12px;
-  background: var(--surface-2);
-  border: 1px solid rgba(0,0,0,0.05);
+  background: transparent;
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
   font-size: 13px;
   font-weight: 500;
@@ -186,8 +187,8 @@
 
 .new-chat-btn:hover {
   background: var(--accent-2);
-  color: #fff;
-  border-color: transparent;
+  color: #000;
+  border-color: #000;
 }
 
 .history-row:hover {
@@ -314,4 +315,16 @@
 
 .confirm-btn.cancel:hover {
   background: var(--surface-2);
+}
+
+.sidebar-footer {
+  padding: 10px;
+  border-top: 2px solid #000000;
+  margin-top: auto;
+}
+
+.sidebar-item.logout-btn:hover {
+  background: #ff4757;
+  color: #fff;
+  border-color: #000000;
 }
