@@ -57,7 +57,7 @@ def _get_page_number(item: Any) -> int:
     """
     try:
         if hasattr(item, "prov") and item.prov:
-            return item.prov[0].page_no + 1  # docling uses 0-indexed pages
+            return item.prov[0].page_no
     except Exception:
         pass
     return 1

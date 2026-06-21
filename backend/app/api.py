@@ -144,6 +144,18 @@ def process_document_task(tmp_path: str, filename: str, size_str: str, doc_id: s
 
         from app.ingestion_pipeline import process_document
         elements = process_document(tmp_path)
+        
+        total_pages = 1
+        try:
+            from pypdf import PdfReader
+            reader = PdfReader(tmp_path)
+            total_pages = len(reader.pages)
+        except Exception as e:
+            logging.warning(f"Failed to read exact PDF pages: {e}")
+            for e_item in elements:
+                if hasattr(e_item, "page_number") and e_item.page_number is not None:
+                    total_pages = max(total_pages, e_item.page_number)
+                    
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
             
@@ -194,10 +206,7 @@ def process_document_task(tmp_path: str, filename: str, size_str: str, doc_id: s
         table_count = sum(1 for e in elements if type(e).__name__ == "TableElement")
         image_count = sum(1 for e in elements if type(e).__name__ == "ImageElement")
 
-        max_page = 1
-        for e in elements:
-            if hasattr(e, "page_number") and e.page_number is not None:
-                max_page = max(max_page, e.page_number)
+        max_page = total_pages
 
         docs_col = get_documents_collection()
         if docs_col is not None:
@@ -514,11 +523,7 @@ def get_status():
                     doc_id_str = str(d["_id"])
                     if doc_id_str in GLOBAL_STATE["documents"]:
                         status = "indexed"
-                        doc_data = GLOBAL_STATE["documents"][doc_id_str]
-                        if "pages_cache" not in doc_data:
-                            graph = doc_data["graph"]
-                            doc_data["pages_cache"] = max([data.get("page_number", 1) for _, data in graph.nodes(data=True)] + [1])
-                        pages = doc_data["pages_cache"]
+                        pages = d.get("stats", {}).get("max_page", d.get("stats", {}).get("text", 0) // 5 + 1)
                     else:
                         status = "inactive"
                         pages = d.get("stats", {}).get("max_page", d.get("stats", {}).get("text", 0) // 5 + 1)
@@ -553,12 +558,11 @@ def get_status():
         if doc_id not in seen_ids:
             if "stats_cache" not in doc_data:
                 graph = doc_data["graph"]
-                pages = max([data.get("page_number", 1) for _, data in graph.nodes(data=True)] + [1])
                 textCount = sum(1 for _, data in graph.nodes(data=True) if data.get("element_type") == "TextElement")
                 tableCount = sum(1 for _, data in graph.nodes(data=True) if data.get("element_type") == "TableElement")
                 imageCount = sum(1 for _, data in graph.nodes(data=True) if data.get("element_type") == "ImageElement")
                 doc_data["stats_cache"] = {
-                    "pages": pages,
+                    "pages": 1,
                     "textCount": textCount,
                     "tableCount": tableCount,
                     "imageCount": imageCount,
