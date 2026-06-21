@@ -105,7 +105,7 @@ def generate_answer(query: str, context_str: str, answer_style: str = "default")
 
         try:
             completion = client.chat.completions.create(
-                model="llama-3.1-8b-instant",
+                model="llama-3.3-70b-versatile",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_message}
@@ -114,9 +114,9 @@ def generate_answer(query: str, context_str: str, answer_style: str = "default")
                 max_tokens=1024,
             )
         except Exception as groq_err:
-            logger.warning(f"llama-3.1-8b-instant failed: {groq_err}. Falling back to llama3-8b-8192")
+            logger.warning(f"llama-3.3-70b-versatile failed: {groq_err}. Falling back to llama-3.1-8b-instant")
             completion = client.chat.completions.create(
-                model="llama3-8b-8192",
+                model="llama-3.1-8b-instant",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_message}
@@ -174,7 +174,7 @@ def decompose_query(query: str) -> List[str]:
         client = Groq()
         try:
             completion = client.chat.completions.create(
-                model="llama-3.1-8b-instant",
+                model="llama-3.3-70b-versatile",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": query}
@@ -184,9 +184,9 @@ def decompose_query(query: str) -> List[str]:
                 response_format={"type": "json_object"}
             )
         except Exception as groq_err:
-            logger.warning(f"llama-3.1-8b-instant failed: {groq_err}. Falling back to llama3-8b-8192")
+            logger.warning(f"llama-3.3-70b-versatile failed: {groq_err}. Falling back to llama-3.1-8b-instant")
             completion = client.chat.completions.create(
-                model="llama3-8b-8192",
+                model="llama-3.1-8b-instant",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": query}
@@ -235,7 +235,7 @@ def generate_document_summary(text_content: str) -> Dict[str, Any]:
         client = Groq()
         try:
             completion = client.chat.completions.create(
-                model="llama-3.1-8b-instant",
+                model="llama-3.3-70b-versatile",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     # Truncate to first ~5,000 characters to prevent Groq Free Tier 6k TPM limits
@@ -246,9 +246,9 @@ def generate_document_summary(text_content: str) -> Dict[str, Any]:
                 response_format={"type": "json_object"}
             )
         except Exception as groq_err:
-            logger.warning(f"llama-3.1-8b-instant failed: {groq_err}. Falling back to llama3-8b-8192")
+            logger.warning(f"llama-3.3-70b-versatile failed: {groq_err}. Falling back to llama-3.1-8b-instant")
             completion = client.chat.completions.create(
-                model="llama3-8b-8192",
+                model="llama-3.1-8b-instant",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     # Truncate to first ~5,000 characters to prevent Groq Free Tier 6k TPM limits
