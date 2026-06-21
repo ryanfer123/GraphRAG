@@ -14,7 +14,7 @@ export default function ChatPanel({ onHighlightNodes }) {
   const [isListening, setIsListening] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [showModelPicker, setShowModelPicker] = useState(false)
-  const [selectedModel, setSelectedModel] = useState('Llama 3.3-70b')
+  const [selectedModel, setSelectedModel] = useState('Llama 3.1-8b')
   const [answerStyle, setAnswerStyle] = useState('default')
   const [showStylePicker, setShowStylePicker] = useState(false)
   const [thinkingStepIdx, setThinkingStepIdx] = useState(0)
@@ -26,7 +26,7 @@ export default function ChatPanel({ onHighlightNodes }) {
     "Retrieving semantic neighborhood...",
     "Expanding context via 2-hop graph walk...",
     "Reranking candidates with ms-marco-L-6...",
-    "Prompting llama-3.3-70b via OpenRouter for synthesis...",
+    "Prompting llama-3.1-8b via Groq for synthesis...",
     "Generating final grounded answer..."
   ]
   
@@ -235,20 +235,12 @@ export default function ChatPanel({ onHighlightNodes }) {
           <div style={{ position: 'absolute', bottom: '100%', left: '10px', marginBottom: '10px', background: '#fff', color: '#000', border: '2px solid #000', padding: '8px', borderRadius: '12px', boxShadow: '4px 4px 0px #000', zIndex: 10, width: '280px', fontFamily: 'var(--font-body)' }}>
             <div style={{ padding: '4px 8px', fontSize: '11px', color: '#666', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Models</div>
             
-            <div onClick={() => { setSelectedModel('Llama 3.3-70b'); setShowModelPicker(false) }} style={{ padding: '8px', cursor: 'pointer', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: selectedModel === 'Llama 3.3-70b' ? '#f0f0f0' : 'transparent' }}>
+            <div onClick={() => { setSelectedModel('Llama 3.1-8b'); setShowModelPicker(false) }} style={{ padding: '8px', cursor: 'pointer', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: selectedModel === 'Llama 3.1-8b' ? '#f0f0f0' : 'transparent' }}>
               <div>
-                <div style={{ fontWeight: 600, color: '#000', fontSize: '13px' }}>Llama 3.3-70b</div>
-                <div style={{ fontSize: '11px', color: '#666' }}>Best for high-level reasoning</div>
+                <div style={{ fontWeight: 600, color: '#000', fontSize: '13px' }}>Llama 3.1-8b</div>
+                <div style={{ fontSize: '11px', color: '#666' }}>Fastest for quick answers</div>
               </div>
-              {selectedModel === 'Llama 3.3-70b' && <Check size={16} color="#000" />}
-            </div>
-            
-            <div onClick={() => { setSelectedModel('Qwen3 Next-80b'); setShowModelPicker(false) }} style={{ padding: '8px', cursor: 'pointer', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: selectedModel === 'Qwen3 Next-80b' ? '#f0f0f0' : 'transparent' }}>
-              <div>
-                <div style={{ fontWeight: 600, color: '#000', fontSize: '13px' }}>Qwen3 Next-80b</div>
-                <div style={{ fontSize: '11px', color: '#666' }}>262K context, great for large docs</div>
-              </div>
-              {selectedModel === 'Qwen3 Next-80b' && <Check size={16} color="#000" />}
+              {selectedModel === 'Llama 3.1-8b' && <Check size={16} color="#000" />}
             </div>
 
             <div style={{ height: '1px', background: '#ddd', margin: '8px 0' }}></div>

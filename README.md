@@ -1,12 +1,12 @@
 # Graph-Augmented RAG
 
-A powerful, multimodal Graph-Augmented Retrieval-Augmented Generation (RAG) system. This application parses complex documents (including images and tables), builds an interactive knowledge graph, and uses OpenRouter LLMs to provide highly accurate, visually-cited answers.
+A powerful, multimodal Graph-Augmented Retrieval-Augmented Generation (RAG) system. This application parses complex documents (including images and tables), builds an interactive knowledge graph, and uses a Vision-Language Model (Groq) to provide highly accurate, visually-cited answers.
 
 ## Architecture
 - **Backend:** Python (FastAPI), PyTorch, ChromaDB, IBM Docling, NetworkX
 - **Frontend:** React, Vite, ReactFlow
 - **Database:** MongoDB
-- **LLM:** OpenRouter API (Llama 3.3-70b, Qwen3 Next-80b)
+- **LLM:** Groq API
 
 ---
 
@@ -21,7 +21,7 @@ You will need the following installed on your machine:
 - **Git**
 
 You will also need two API keys:
-1. **OpenRouter API Key:** For fast LLM inference via multiple free models.
+1. **Groq API Key:** For the lightning-fast LLM inference.
 2. **MongoDB URI:** For storing the GraphRAG document state and chat history.
 
 ### 2. Backend Setup
@@ -48,7 +48,7 @@ The backend handles the ML inference, document parsing, and database logic.
 4. **Configure your Environment Variables:**
    Create a new file named `.env` in the root directory of the project and add your keys:
    ```env
-   OPENROUTER_API_KEY=your_openrouter_api_key_here
+   GROQ_API_KEY=your_groq_api_key_here
    MONGO_URI=your_mongodb_connection_string_here
    ```
 
@@ -96,7 +96,7 @@ The frontend is a Vite-powered React application with interactive ReactFlow grap
 This project successfully implements all the bonus features requested in the hackathon problem statement:
 
 1. **Agentic Reasoning & Adversarial Robustness:**
-   - **Query Decomposition:** Complex, multi-hop user questions (e.g. "Compare revenue in Q1 and Q2") are automatically broken down into atomic sub-queries and routed to Llama 3.3-70b via OpenRouter for highly targeted semantic retrieval.
+   - **Query Decomposition:** Complex, multi-hop user questions (e.g. "Compare revenue in Q1 and Q2") are automatically broken down into atomic sub-queries and routed to Groq (`llama-3.3-70b-versatile`) for highly targeted semantic retrieval.
    - **Robust System Prompt:** The LLM is explicitly instructed to avoid hallucinations and confidently state when a question is unanswerable based on the provided document context, successfully handling "trick" questions.
 
 2. **Cross-Document QA (Global Knowledge Base):**
