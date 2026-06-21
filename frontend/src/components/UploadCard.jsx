@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect } from 'react'
-import { UploadCloud, FileCheck2, Loader2 } from 'lucide-react'
+import { useState, useCallback, useEffect, useRef } from 'react'
+import { UploadCloud, FileCheck2, Loader2, XCircle } from 'lucide-react'
 import axios from 'axios'
 import './UploadCard.css'
 
@@ -10,6 +10,8 @@ export default function UploadCard({ onUploadSuccess }) {
   const [uploadStatus, setUploadStatus] = useState(null)
   const [progressMsg, setProgressMsg] = useState('')
   const [progressVal, setProgressVal] = useState(0)
+  const [currentDocId, setCurrentDocId] = useState(null)
+  const eventSourceRef = useRef(null)
 
   useEffect(() => {
     // The error popup now requires manual dismissal or retry
@@ -31,11 +33,12 @@ export default function UploadCard({ onUploadSuccess }) {
       })
       
       const docId = response.data.doc_id;
+      setCurrentDocId(docId);
       window.dispatchEvent(new CustomEvent('upload-started', { detail: { id: docId, name: file.name } }));
       
       
-      const eventSource = new EventSource(`/api/upload/stream/${docId}`);
-      eventSource.onmessage = (event) => {
+      eventSourceRef.current = new EventSource(`/api/upload/stream/${docId}`);
+      eventSourceRef.current.onmessage = (event) => {
         const data = JSON.parse(event.data);
         console.log("SSE update:", data);
         if (data.status === 'error') {
@@ -43,7 +46,12 @@ export default function UploadCard({ onUploadSuccess }) {
           setUploadStatus('error');
           setProgressMsg(data.message || 'Processing failed');
           setIsUploading(false);
-          eventSource.close();
+          if (eventSourceRef.current) { eventSourceRef.current.close(); eventSourceRef.current = null; }
+        } else if (data.status === 'cancelled') {
+          setUploadStatus(null);
+          setIsUploading(false);
+          setFiles([]);
+          if (eventSourceRef.current) { eventSourceRef.current.close(); eventSourceRef.current = null; }
         } else {
           setProgressVal(data.progress || 0);
           setProgressMsg(data.message || '');
@@ -52,15 +60,15 @@ export default function UploadCard({ onUploadSuccess }) {
             setIsUploading(false);
             window.dispatchEvent(new CustomEvent('graph-updated'));
             if (onUploadSuccess) onUploadSuccess(response.data);
-            eventSource.close();
+            if (eventSourceRef.current) { eventSourceRef.current.close(); eventSourceRef.current = null; }
           }
         }
       };
       
-      eventSource.onerror = (err) => {
+      eventSourceRef.current.onerror = (err) => {
         console.error("SSE Error", err);
-        eventSource.close();
-        if (uploadStatus !== 'success') {
+        if (eventSourceRef.current) { eventSourceRef.current.close(); eventSourceRef.current = null; }
+        if (uploadStatus !== 'success' && uploadStatus !== 'cancelled') {
           setUploadStatus('error');
           setIsUploading(false);
         }
@@ -71,6 +79,26 @@ export default function UploadCard({ onUploadSuccess }) {
       setUploadStatus('error')
       setIsUploading(false)
     }
+  }
+
+  const cancelUpload = async () => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close()
+      eventSourceRef.current = null
+    }
+    if (currentDocId) {
+      try {
+        await axios.post(`/api/upload/cancel/${currentDocId}`)
+      } catch (err) {
+        console.error("Failed to cancel upload:", err)
+      }
+    }
+    setUploadStatus(null)
+    setIsUploading(false)
+    setFiles([])
+    setCurrentDocId(null)
+    setProgressVal(0)
+    setProgressMsg('')
   }
 
   const handleDrop = useCallback((e) => {
@@ -122,6 +150,11 @@ export default function UploadCard({ onUploadSuccess }) {
               <span className="upload-queue-status">
                 {uploadStatus === 'uploading' ? 'processing...' : uploadStatus === 'success' ? 'indexed' : 'failed'}
               </span>
+              {isUploading && (
+                <button className="upload-cancel-x" onClick={cancelUpload} title="Cancel Upload">
+                  <XCircle size={14} />
+                </button>
+              )}
             </div>
           ))}
           

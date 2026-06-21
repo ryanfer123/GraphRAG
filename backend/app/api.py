@@ -137,9 +137,18 @@ def process_document_task(tmp_path: str, filename: str, size_str: str, doc_id: s
     try:
         UPLOAD_PROGRESS[doc_id]["progress"] = 20
         UPLOAD_PROGRESS[doc_id]["message"] = "Extracting elements..."
+        if UPLOAD_PROGRESS[doc_id].get("status") == "cancelled":
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+            return
+
         from app.ingestion_pipeline import process_document
         elements = process_document(tmp_path)
-        os.unlink(tmp_path)
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+            
+        if UPLOAD_PROGRESS[doc_id].get("status") == "cancelled":
+            return
         
         if not elements:
             UPLOAD_PROGRESS[doc_id]["status"] = "error"
@@ -156,12 +165,18 @@ def process_document_task(tmp_path: str, filename: str, size_str: str, doc_id: s
             GLOBAL_STATE["global_graph"], 
             GLOBAL_STATE["global_collection"]
         )
-        
+        if UPLOAD_PROGRESS[doc_id].get("status") == "cancelled":
+            return
+
         UPLOAD_PROGRESS[doc_id]["progress"] = 80
         UPLOAD_PROGRESS[doc_id]["message"] = "Generating summary..."
         
         from app.qa_generator import generate_document_summary
         full_text = "\n".join([getattr(e, "text", str(e)) for e in elements if type(e).__name__ == "TextElement"])
+        
+        if UPLOAD_PROGRESS[doc_id].get("status") == "cancelled":
+            return
+            
         summary_data = generate_document_summary(full_text)
         
         GLOBAL_STATE["documents"][doc_id] = {
@@ -250,6 +265,14 @@ async def upload_document(background_tasks: BackgroundTasks, file: UploadFile = 
     except Exception as e:
         UPLOAD_PROGRESS[doc_id] = {"status": "error", "progress": 0, "message": str(e)}
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/upload/cancel/{doc_id}")
+def cancel_upload(doc_id: str):
+    if doc_id in UPLOAD_PROGRESS:
+        UPLOAD_PROGRESS[doc_id]["status"] = "cancelled"
+        UPLOAD_PROGRESS[doc_id]["message"] = "Upload cancelled."
+        return {"status": "success"}
+    raise HTTPException(status_code=404, detail="Upload not found.")
 
 @app.get("/api/upload/stream/{doc_id}")
 async def upload_stream(doc_id: str):
