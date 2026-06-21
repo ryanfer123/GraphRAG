@@ -341,7 +341,7 @@ export default function Sidebar({ active, setActive }) {
           <div className="sidebar-list">
             <p className="sidebar-list-title">Pipeline settings</p>
             <div className="setting-row"><span>Vision model</span><span className="mono">qwen2-vl-2b</span></div>
-            <div className="setting-row"><span>Generation model</span><span className="mono">llama-3.1-8b</span></div>
+            <div className="setting-row"><span>Generation model</span><span className="mono">llama-3.3-70b</span></div>
             <div className="setting-row"><span>Reranker</span><span className="mono">ms-marco-mini</span></div>
             <div className="setting-row"><span>Retrieval top-k</span><span className="mono">6</span></div>
             <div className="setting-row"><span>Graph hop depth</span><span className="mono">2</span></div>

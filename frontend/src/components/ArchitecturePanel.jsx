@@ -8,8 +8,8 @@ const ARCH_DETAILS = {
     title: 'Document Ingestion',
     icon: FileText,
     type: 'Parsing',
-    content: 'We use unstructured.io to parse complex document layouts. It identifies Headings, Paragraphs, Tables, and Images, returning them in a structured sequence with bounding boxes and page metadata.',
-    tech: 'unstructured, pdfminer'
+    content: 'We use IBM Docling to parse complex document layouts at high speed. It identifies Headings, Paragraphs, Tables, and Images, returning them in a structured sequence with bounding boxes and page metadata.',
+    tech: 'IBM Docling, docling-core'
   },
   vision: {
     title: 'Vision-Language Model',
@@ -51,14 +51,14 @@ const ARCH_DETAILS = {
     icon: Search,
     type: 'Retrieval',
     content: 'Complex user queries are passed to a reasoning LLM to break them down into 2-3 simpler, focused sub-queries. Each sub-query runs an independent vector search against ChromaDB.',
-    tech: 'Llama-3, Prompt Engineering'
+    tech: 'Llama 3.3-70b via OpenRouter'
   },
   generation: {
     title: 'Graph-Augmented Synthesis',
     icon: BrainCircuit,
     type: 'Generation',
     content: 'The union of all retrieved nodes and their graph neighbors is injected into the LLM context. The LLM synthesizes a final answer, strictly citing the source node IDs to ensure hallucination-free responses.',
-    tech: 'Llama-3, RAG'
+    tech: 'Llama 3.3-70b via OpenRouter, RAG'
   }
 }
 
@@ -89,7 +89,7 @@ export default function ArchitecturePanel() {
           <div className="arch-card-group">
             <div className={`arch-card ${selectedCard === 'ingestion' ? 'is-selected' : ''}`} onClick={() => setSelectedCard('ingestion')}>
               <h4><FileText size={18} /> Partitioning & Parsing</h4>
-              <p>Unstructured.io extracts text, tables, and images from raw PDFs and DOCXs.</p>
+              <p>IBM Docling extracts text, tables, and images from raw PDFs and DOCXs.</p>
             </div>
             <div className={`arch-card ${selectedCard === 'vision' ? 'is-selected' : ''}`} onClick={() => setSelectedCard('vision')}>
               <h4><ImageIcon size={18} /> Vision Extraction</h4>

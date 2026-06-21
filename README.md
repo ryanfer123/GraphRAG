@@ -1,12 +1,12 @@
 # Graph-Augmented RAG
 
-A powerful, multimodal Graph-Augmented Retrieval-Augmented Generation (RAG) system. This application parses complex documents (including images and tables), builds an interactive knowledge graph, and uses a Vision-Language Model (Groq) to provide highly accurate, visually-cited answers.
+A powerful, multimodal Graph-Augmented Retrieval-Augmented Generation (RAG) system. This application parses complex documents (including images and tables), builds an interactive knowledge graph, and uses OpenRouter LLMs to provide highly accurate, visually-cited answers.
 
 ## Architecture
-- **Backend:** Python (FastAPI), PyTorch, ChromaDB, Unstructured.io, NetworkX
+- **Backend:** Python (FastAPI), PyTorch, ChromaDB, IBM Docling, NetworkX
 - **Frontend:** React, Vite, ReactFlow
 - **Database:** MongoDB
-- **LLM:** Groq API
+- **LLM:** OpenRouter API (Llama 3.3-70b, Qwen3 Next-80b)
 
 ---
 
@@ -20,13 +20,8 @@ You will need the following installed on your machine:
 - **Node.js 18+**
 - **Git**
 
-**Windows Users - Extra Step:**
-The Unstructured.io parsing library requires **Tesseract OCR** to extract text from images.
-- Download the Tesseract installer for Windows from UB Mannheim: [https://github.com/UB-Mannheim/tesseract/wiki](https://github.com/UB-Mannheim/tesseract/wiki)
-- Install it and ensure the installation folder (usually `C:\Program Files\Tesseract-OCR`) is added to your system's `PATH` environment variable.
-
 You will also need two API keys:
-1. **Groq API Key:** For the lightning-fast LLM inference.
+1. **OpenRouter API Key:** For fast LLM inference via multiple free models.
 2. **MongoDB URI:** For storing the GraphRAG document state and chat history.
 
 ### 2. Backend Setup
@@ -53,7 +48,7 @@ The backend handles the ML inference, document parsing, and database logic.
 4. **Configure your Environment Variables:**
    Create a new file named `.env` in the root directory of the project and add your keys:
    ```env
-   GROQ_API_KEY=your_groq_api_key_here
+   OPENROUTER_API_KEY=your_openrouter_api_key_here
    MONGO_URI=your_mongodb_connection_string_here
    ```
 
@@ -101,7 +96,7 @@ The frontend is a Vite-powered React application with interactive ReactFlow grap
 This project successfully implements all the bonus features requested in the hackathon problem statement:
 
 1. **Agentic Reasoning & Adversarial Robustness:**
-   - **Query Decomposition:** Complex, multi-hop user questions (e.g. "Compare revenue in Q1 and Q2") are automatically broken down into atomic sub-queries and routed to Groq (`llama-3.3-70b-versatile`) for highly targeted semantic retrieval.
+   - **Query Decomposition:** Complex, multi-hop user questions (e.g. "Compare revenue in Q1 and Q2") are automatically broken down into atomic sub-queries and routed to Llama 3.3-70b via OpenRouter for highly targeted semantic retrieval.
    - **Robust System Prompt:** The LLM is explicitly instructed to avoid hallucinations and confidently state when a question is unanswerable based on the provided document context, successfully handling "trick" questions.
 
 2. **Cross-Document QA (Global Knowledge Base):**
@@ -113,7 +108,7 @@ This project successfully implements all the bonus features requested in the hac
    - The ChatPanel includes a collapsible "Sources Used" accordion. Clicking this expands a list of `SourceCard` components displaying the exact snippet, type (paragraph/table/image), and page number where the information was sourced.
 
 4. **Real-Time Ingestion (Streaming):**
-   - The `/api/upload` endpoint defers the heavy ingestion workload (MLX embedding and Unstructured layout extraction) to FastAPI `BackgroundTasks`.
+   - The `/api/upload` endpoint defers the heavy ingestion workload (MLX embedding and IBM Docling layout extraction) to FastAPI `BackgroundTasks`.
    - A Server-Sent Events (SSE) `/api/upload/stream/{doc_id}` endpoint broadcasts ingestion progress to the frontend.
    - `UploadCard.jsx` listens to the SSE stream and renders an animated progress bar, giving the user real-time feedback on extraction, graph building, and summarization phases.
 
@@ -122,7 +117,7 @@ This project successfully implements all the bonus features requested in the hac
 ## ✨ Latest Polish & Updates
 - **Document-Specific RAG Filtering:** Chat history and retrieval now correctly filter context by `doc_id` to prevent cross-document leakage when analyzing a single document.
 - **Graph Explorer Overhaul:** Replaced the chaotic BFS DAG layout with a **Sequential Wrapping Grid** layout, perfectly mapping the native document reading order and preventing disconnected sections from rendering as separate graphs.
-- **Robust DOCX Parsing:** Explicitly integrated `unstructured[docx]` (`python-docx`) into the pipeline for seamless Word Document extraction alongside PDFs.
+- **Fast Document Parsing:** Migrated from `unstructured` to IBM Docling for 5-10x faster document ingestion, with excellent support for PDFs, DOCXs, PPTXs, and more.
 - **UI & UX Refinements:**
   - Added beautiful center-aligned empty states for the Chat History and Graph Explorer when no documents are active.
   - Implemented an interactive "Try Again" error handling flow for failed document uploads.

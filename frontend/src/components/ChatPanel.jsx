@@ -14,7 +14,7 @@ export default function ChatPanel({ onHighlightNodes }) {
   const [isListening, setIsListening] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [showModelPicker, setShowModelPicker] = useState(false)
-  const [selectedModel, setSelectedModel] = useState('Llama 3.1-8b')
+  const [selectedModel, setSelectedModel] = useState('Llama 3.3-70b')
   const [answerStyle, setAnswerStyle] = useState('default')
   const [showStylePicker, setShowStylePicker] = useState(false)
   const [thinkingStepIdx, setThinkingStepIdx] = useState(0)
@@ -26,7 +26,7 @@ export default function ChatPanel({ onHighlightNodes }) {
     "Retrieving semantic neighborhood...",
     "Expanding context via 2-hop graph walk...",
     "Reranking candidates with ms-marco-L-6...",
-    "Prompting llama-3.3-70b-versatile for synthesis...",
+    "Prompting llama-3.3-70b via OpenRouter for synthesis...",
     "Generating final grounded answer..."
   ]
   
@@ -243,12 +243,12 @@ export default function ChatPanel({ onHighlightNodes }) {
               {selectedModel === 'Llama 3.3-70b' && <Check size={16} color="#000" />}
             </div>
             
-            <div onClick={() => { setSelectedModel('Llama 3.1-8b'); setShowModelPicker(false) }} style={{ padding: '8px', cursor: 'pointer', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: selectedModel === 'Llama 3.1-8b' ? '#f0f0f0' : 'transparent' }}>
+            <div onClick={() => { setSelectedModel('Qwen3 Next-80b'); setShowModelPicker(false) }} style={{ padding: '8px', cursor: 'pointer', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: selectedModel === 'Qwen3 Next-80b' ? '#f0f0f0' : 'transparent' }}>
               <div>
-                <div style={{ fontWeight: 600, color: '#000', fontSize: '13px' }}>Llama 3.1-8b</div>
-                <div style={{ fontSize: '11px', color: '#666' }}>Fastest for quick answers</div>
+                <div style={{ fontWeight: 600, color: '#000', fontSize: '13px' }}>Qwen3 Next-80b</div>
+                <div style={{ fontSize: '11px', color: '#666' }}>262K context, great for large docs</div>
               </div>
-              {selectedModel === 'Llama 3.1-8b' && <Check size={16} color="#000" />}
+              {selectedModel === 'Qwen3 Next-80b' && <Check size={16} color="#000" />}
             </div>
 
             <div style={{ height: '1px', background: '#ddd', margin: '8px 0' }}></div>
