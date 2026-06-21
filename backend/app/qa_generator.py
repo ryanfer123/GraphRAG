@@ -134,7 +134,7 @@ def generate_answer(query: str, context_str: str, answer_style: str = "default")
         logger.error(f"Failed to generate answer from Groq API: {e}")
         # Graceful fallback dictionary in case of timeouts, rate limits, or auth failures
         return {
-            "answer": "An error occurred while communicating with the LLM API. Please check your connection or API key and try again later.",
+            "answer": f"An error occurred while communicating with the LLM API: {e}",
             "cited_ids": []
         }
 
@@ -226,8 +226,8 @@ def generate_document_summary(text_content: str) -> Dict[str, Any]:
                 model="llama-3.1-8b-instant",
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    # Truncate to first ~15,000 characters to ensure we fit in context window easily
-                    {"role": "user", "content": text_content[:15000]}
+                    # Truncate to first ~5,000 characters to prevent Groq Free Tier 6k TPM limits
+                    {"role": "user", "content": text_content[:5000]}
                 ],
                 temperature=0.1,
                 max_tokens=512,
@@ -239,8 +239,8 @@ def generate_document_summary(text_content: str) -> Dict[str, Any]:
                 model="llama3-8b-8192",
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    # Truncate to first ~15,000 characters to ensure we fit in context window easily
-                    {"role": "user", "content": text_content[:15000]}
+                    # Truncate to first ~5,000 characters to prevent Groq Free Tier 6k TPM limits
+                    {"role": "user", "content": text_content[:5000]}
                 ],
                 temperature=0.1,
                 max_tokens=512,
@@ -253,7 +253,7 @@ def generate_document_summary(text_content: str) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Failed to generate summary from Groq API: {e}")
         return {
-            "summary": "Summary generation failed. Please ensure GROQ_API_KEY is set.",
+            "summary": f"Summary generation failed. Groq API Error: {e}",
             "highlights": ["Could not generate highlights"],
             "entities": ["Unknown"],
             "category": "Unclassified"

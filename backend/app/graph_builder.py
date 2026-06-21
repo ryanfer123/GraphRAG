@@ -81,7 +81,7 @@ def build_graph_and_index(elements: List[BaseDocumentElement], doc_id: str, grap
     
     # Process each element to populate the NetworkX nodes and ChromaDB data
     for i, el in enumerate(elements):
-        el_type = getattr(el, "element_type", type(el).__name__)
+        el_type = type(el).__name__
         content = contents_to_embed[i]
         emb = raw_embeddings[i]
         

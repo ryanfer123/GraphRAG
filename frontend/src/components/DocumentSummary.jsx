@@ -197,6 +197,16 @@ export default function DocumentSummary({ isMainView = false }) {
               <CheckCircle2 size={16} className="status-banner-icon" />
               <span>Document is fully indexed and ready for retrieval.</span>
             </>
+          ) : selectedDoc.status === 'inactive' ? (
+            <>
+              <AlertCircle size={16} className="status-banner-icon text-red" />
+              <span>Document is inactive. Please re-upload to chat.</span>
+            </>
+          ) : selectedDoc.status === 'error' ? (
+            <>
+              <AlertCircle size={16} className="status-banner-icon text-red" />
+              <span>Processing failed. Please try uploading again.</span>
+            </>
           ) : (
             <>
               <RefreshCw size={16} className="status-banner-icon status-spinner" />

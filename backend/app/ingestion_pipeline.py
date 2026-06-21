@@ -2,18 +2,27 @@
 ingestion_pipeline.py
 
 Processes a raw PDF or DOCX document and converts it into a list of Pydantic objects
-(TextElement, TableElement, ImageElement) using the `unstructured` library.
+(TextElement, TableElement, ImageElement) using IBM's `docling` library for fast,
+high-accuracy document parsing.
 """
 import os
 import uuid
 import logging
 from typing import List, Tuple, Any
 
-from unstructured.partition.auto import partition
+from docling.document_converter import DocumentConverter
+from docling_core.types.doc.document import (
+    TextItem,
+    SectionHeaderItem,
+    ListItem,
+    TableItem,
+    PictureItem,
+)
 
 from app.data_models import (
     BaseDocumentElement,
     TextElement,
+    TitleElement,
     TableElement,
     ImageElement
 )
@@ -24,78 +33,77 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-def _extract_bounding_box(element: Any) -> Tuple[float, float, float, float]:
+def _extract_bounding_box(item: Any) -> Tuple[float, float, float, float]:
     """
-    Extracts the bounding box from an unstructured element.
-    Returns the bounding box as (x0, y0, x1, y1). 
+    Extracts the bounding box from a docling item's provenance data.
+    Returns the bounding box as (x0, y0, x1, y1).
     Returns (0.0, 0.0, 0.0, 0.0) if coordinates are not available.
     """
-    if hasattr(element, "metadata") and element.metadata.coordinates:
-        coords = element.metadata.coordinates.points
-        if coords and len(coords) >= 4:
-            # coords is typically a list of tuples like ((x_top_left, y_top_left), ...)
-            xs = [p[0] for p in coords]
-            ys = [p[1] for p in coords]
-            return float(min(xs)), float(min(ys)), float(max(xs)), float(max(ys))
+    try:
+        if hasattr(item, "prov") and item.prov:
+            prov = item.prov[0]  # First provenance entry
+            bbox = prov.bbox
+            if bbox:
+                return float(bbox.l), float(bbox.t), float(bbox.r), float(bbox.b)
+    except Exception:
+        pass
     return 0.0, 0.0, 0.0, 0.0
+
+
+def _get_page_number(item: Any) -> int:
+    """
+    Extracts the page number from a docling item's provenance data.
+    Returns 1 if not available.
+    """
+    try:
+        if hasattr(item, "prov") and item.prov:
+            return item.prov[0].page_no + 1  # docling uses 0-indexed pages
+    except Exception:
+        pass
+    return 1
 
 
 def process_document(file_path: str) -> List[BaseDocumentElement]:
     """
-    Processes a PDF or DOCX document and extracts Text, Table, and Image elements.
-    
+    Processes a PDF or DOCX document and extracts Text, Table, and Image elements
+    using IBM Docling for fast, high-accuracy parsing.
+
     Args:
         file_path (str): The path to the PDF or DOCX document.
-        
+
     Returns:
         List[BaseDocumentElement]: A list of extracted elements as Pydantic objects.
     """
     extracted_elements: List[BaseDocumentElement] = []
-    
-    logger.info(f"Starting to process document: {file_path}")
-    
+
+    logger.info(f"Starting to process document with Docling: {file_path}")
+
     # Directory to store extracted images temporarily
     image_output_dir = os.path.join(os.path.dirname(file_path), "extracted_images")
     os.makedirs(image_output_dir, exist_ok=True)
-    
+
     try:
-        # Partition the document using unstructured with high-res strategy
-        kwargs = {
-            "filename": file_path,
-            "extract_image_block_types": ["Image"],
-            "extract_image_block_output_dir": image_output_dir,
-            "infer_table_structure": True,
-            "strategy": "hi_res"
-        }
-        
-        # Only pass PDF-specific args if it's actually a PDF
-        if file_path.lower().endswith(".pdf"):
-            kwargs["extract_images_in_pdf"] = True
-            
-        elements = partition(**kwargs)
+        converter = DocumentConverter()
+        conv_result = converter.convert(file_path)
+        doc = conv_result.document
     except Exception as e:
-        logger.error(f"Failed to partition document {file_path}: {e}")
+        logger.error(f"Failed to convert document {file_path} with Docling: {e}")
         return []
 
-    for el in elements:
-        element_type = type(el).__name__
-        
-        # Extract common fields
-        page_num = 1
-        if hasattr(el, "metadata") and el.metadata.page_number:
-            page_num = el.metadata.page_number
-            
-        bbox = _extract_bounding_box(el)
+    for item, level in doc.iterate_items():
         element_uuid = uuid.uuid4()
-        raw_text = str(el)
+        page_num = _get_page_number(item)
+        bbox = _extract_bounding_box(item)
 
         try:
-            if element_type == "Table":
-                # Extract HTML representation if available, otherwise fallback to raw text
-                html_format = raw_text
-                if hasattr(el, "metadata") and el.metadata.text_as_html:
-                    html_format = el.metadata.text_as_html
-                
+            if isinstance(item, TableItem):
+                # Export the table to HTML to preserve grid structure for LLM context
+                html_format = item.export_to_html()
+                # Also get a markdown fallback for raw_content
+                raw_text = item.export_to_markdown()
+                if not raw_text.strip():
+                    raw_text = html_format
+
                 table_element = TableElement(
                     element_id=element_uuid,
                     page_number=page_num,
@@ -104,48 +112,53 @@ def process_document(file_path: str) -> List[BaseDocumentElement]:
                     grid_format=html_format
                 )
                 extracted_elements.append(table_element)
-                
-            elif element_type == "Image":
+
+            elif isinstance(item, PictureItem):
                 semantic_desc = "Description generation failed."
-                
-                if hasattr(el, "metadata") and el.metadata.image_path:
-                    img_path = el.metadata.image_path
-                    try:
+
+                try:
+                    # Try to extract the image from docling and save it
+                    pil_image = item.get_image(doc)
+                    if pil_image:
+                        img_filename = f"img_{element_uuid}.png"
+                        img_path = os.path.join(image_output_dir, img_filename)
+                        pil_image.save(img_path)
+
                         # Process image through our VLM from model_config.py
                         semantic_desc = generate_image_description(img_path)
-                    except Exception as e:
-                        logger.error(f"Failed to generate description for image at {img_path}: {e}")
-                else:
-                    logger.warning(f"Image element found without an extracted image path on page {page_num}.")
-                
-                # We provide a placeholder for raw_content since Images might not have raw string data
-                image_content = raw_text if raw_text.strip() else "[Extracted Image Block]"
-                
+                    else:
+                        logger.warning(f"PictureItem found but get_image returned None on page {page_num}.")
+                except Exception as e:
+                    logger.error(f"Failed to process image on page {page_num}: {e}")
+
                 image_element = ImageElement(
                     element_id=element_uuid,
                     page_number=page_num,
                     bounding_box=bbox,
-                    raw_content=image_content,
+                    raw_content="[Extracted Image Block]",
                     semantic_description=semantic_desc
                 )
                 extracted_elements.append(image_element)
-                
-            elif element_type == "Title":
-                text_element = TextElement(
-                    element_id=element_uuid,
-                    page_number=page_num,
-                    bounding_box=bbox,
-                    raw_content=raw_text
-                )
-                text_element.element_type = "TitleElement" # Set explicitly for graph builder
-                extracted_elements.append(text_element)
-                
-            else:
-                # All other textual elements (NarrativeText, ListItem, etc.)
-                # We skip empty elements to avoid noise
+
+            elif isinstance(item, SectionHeaderItem):
+                raw_text = item.text if hasattr(item, "text") and item.text else ""
                 if not raw_text.strip():
                     continue
-                    
+
+                title_element = TitleElement(
+                    element_id=element_uuid,
+                    page_number=page_num,
+                    bounding_box=bbox,
+                    raw_content=raw_text
+                )
+                extracted_elements.append(title_element)
+
+            elif isinstance(item, TextItem):
+                # Handles regular text paragraphs, list items, etc.
+                raw_text = item.text if hasattr(item, "text") and item.text else ""
+                if not raw_text.strip():
+                    continue
+
                 text_element = TextElement(
                     element_id=element_uuid,
                     page_number=page_num,
@@ -153,10 +166,10 @@ def process_document(file_path: str) -> List[BaseDocumentElement]:
                     raw_content=raw_text
                 )
                 extracted_elements.append(text_element)
-                
+
         except Exception as e:
-            # Gracefully handle exception for individual elements
-            logger.error(f"Error processing element {element_type} on page {page_num}: {e}")
+            item_type = type(item).__name__
+            logger.error(f"Error processing element {item_type} on page {page_num}: {e}")
             continue
 
     logger.info(f"Successfully processed {len(extracted_elements)} elements from {file_path}")

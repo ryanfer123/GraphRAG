@@ -39,6 +39,12 @@ class TextElement(BaseDocumentElement):
     """
     pass
 
+class TitleElement(TextElement):
+    """
+    Represents a Title or Heading element.
+    """
+    pass
+
 class TableElement(BaseDocumentElement):
     """
     Represents a structured table extracted from the document.
