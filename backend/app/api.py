@@ -18,7 +18,7 @@ import asyncio
 import json
 
 # Backend imports lazily loaded in endpoints to prevent port bind timeout on Render
-from app.database import get_documents_collection, get_chat_history_collection, get_users_collection
+from app.database import get_documents_collection, get_chat_history_collection, get_users_collection, get_query_cache_collection
 from datetime import datetime
 
 app = FastAPI()
@@ -414,6 +414,20 @@ def chat_endpoint(request: QueryRequest):
         doc_state = GLOBAL_STATE["documents"][doc_id]
         graph = doc_state["graph"]
         collection = doc_state["collection"]
+        
+    query_normalized = request.query.strip().lower()
+    cache_col = get_query_cache_collection()
+    
+    if cache_col is not None:
+        cached = cache_col.find_one({
+            "query": query_normalized,
+            "doc_id": doc_id,
+            "style": request.answer_style
+        })
+        if cached and "response" in cached:
+            logging.info(f"Cache hit for query: '{query_normalized}' in doc {doc_id}")
+            return cached["response"]
+    
     
     try:
         sub_queries = decompose_query(request.query)

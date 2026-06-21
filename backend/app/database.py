@@ -13,6 +13,7 @@ db = None
 documents_collection = None
 chat_history_collection = None
 users_collection = None
+query_cache_collection = None
 
 if MONGO_URI:
     try:
@@ -25,6 +26,7 @@ if MONGO_URI:
         documents_collection = db.get_collection("documents")
         chat_history_collection = db.get_collection("chat_history")
         users_collection = db.get_collection("users")
+        query_cache_collection = db.get_collection("query_cache")
         logger.info("MongoDB connected successfully.")
     except Exception as e:
         logger.error(f"Failed to connect to MongoDB: {e}")
@@ -39,3 +41,6 @@ def get_chat_history_collection():
 
 def get_users_collection():
     return users_collection
+
+def get_query_cache_collection():
+    return query_cache_collection
