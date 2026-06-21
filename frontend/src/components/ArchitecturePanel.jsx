@@ -51,14 +51,14 @@ const ARCH_DETAILS = {
     icon: Search,
     type: 'Retrieval',
     content: 'Complex user queries are passed to a reasoning LLM to break them down into 2-3 simpler, focused sub-queries. Each sub-query runs an independent vector search against ChromaDB.',
-    tech: 'Llama 3.3-70b via OpenRouter'
+    tech: 'Llama 3.3-70b via Groq'
   },
   generation: {
     title: 'Graph-Augmented Synthesis',
     icon: BrainCircuit,
     type: 'Generation',
     content: 'The union of all retrieved nodes and their graph neighbors is injected into the LLM context. The LLM synthesizes a final answer, strictly citing the source node IDs to ensure hallucination-free responses.',
-    tech: 'Llama 3.3-70b via OpenRouter, RAG'
+    tech: 'Llama 3.3-70b via Groq, RAG'
   }
 }
 
