@@ -203,7 +203,9 @@ export default function Sidebar({ active, setActive }) {
       </nav>
 
       <div className="sidebar-panel">
-        {active === 'upload' && <UploadCard />}
+        <div style={{ display: active === 'upload' ? 'block' : 'none' }}>
+          <UploadCard />
+        </div>
 
         {active === 'documents' && (
           <div className="sidebar-list">
