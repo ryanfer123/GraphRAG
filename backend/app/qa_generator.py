@@ -1,8 +1,8 @@
 """
 qa_generator.py
 
-Generates grounded, explainable answers using the Groq API (Llama 3) based on the 
-retrieved Graph-Augmented RAG context. Parses inline citations for full traceability.
+Generates grounded, explainable answers using OpenRouter (OpenAI-compatible API) based on
+the retrieved Graph-Augmented RAG context. Parses inline citations for full traceability.
 """
 
 import re
@@ -12,7 +12,7 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 from typing import Dict, List, Any
-from groq import Groq
+from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -21,15 +21,45 @@ logging.basicConfig(level=logging.INFO)
 # since the LLM might deviate slightly from the exact [ID: ...] bracket formatting.
 CITATION_PATTERN = re.compile(r"([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})")
 
+# OpenRouter configuration
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+
+# Primary and fallback models on OpenRouter (free tier)
+PRIMARY_MODEL = "meta-llama/llama-3.3-70b-instruct"
+FALLBACK_MODEL = "qwen/qwen3-next-80b-a3b-instruct"
+
+
+def _get_client() -> OpenAI:
+    """Creates an OpenAI client configured for OpenRouter."""
+    return OpenAI(
+        base_url=OPENROUTER_BASE_URL,
+        api_key=OPENROUTER_API_KEY,
+    )
+
+
+def _extract_json(text: str) -> Any:
+    """
+    Extracts and parses JSON from LLM output, stripping markdown code fences
+    (```json ... ```) that many open-source models add even when asked for plain JSON.
+    """
+    if text is None:
+        return None
+    # Strip markdown code fences
+    cleaned = re.sub(r'^```(?:json)?\s*', '', text.strip())
+    cleaned = re.sub(r'```\s*$', '', cleaned.strip())
+    return json.loads(cleaned)
+
 
 def generate_answer(query: str, context_str: str, answer_style: str = "default") -> Dict[str, Any]:
     """
-    Passes the retrieved context and user query to a Groq LLM to generate an answer.
+    Passes the retrieved context and user query to an LLM via OpenRouter to generate an answer.
     Extracts all cited IDs from the output to provide graph traceability.
 
     Args:
         query (str): The user's natural language question.
         context_str (str): The formatted context blocks returned by the retriever.
+        answer_style (str): The style of the answer (default, concise, academic, formal).
 
     Returns:
         Dict[str, Any]: A dictionary containing:
@@ -76,8 +106,6 @@ def generate_answer(query: str, context_str: str, answer_style: str = "default")
         "- APAC region contribution: $45K (Table on Page 3) [ID: table-uuid-456]."
     )
 
-    # Limit context size to ~2500 tokens (12000 chars) to prevent hitting 6000 TPM limits
-    # on the free tier when running complex queries or fallback models.
     user_message = (
         f"Provided Context:\n"
         f"---\n"
@@ -87,12 +115,11 @@ def generate_answer(query: str, context_str: str, answer_style: str = "default")
     )
 
     try:
-        # Initialize Groq client. Expects GROQ_API_KEY environment variable to be set.
-        client = Groq()
+        client = _get_client()
 
         try:
             completion = client.chat.completions.create(
-                model="llama-3.1-8b-instant",
+                model=PRIMARY_MODEL,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_message}
@@ -100,10 +127,10 @@ def generate_answer(query: str, context_str: str, answer_style: str = "default")
                 temperature=0.0,
                 max_tokens=1024,
             )
-        except Exception as groq_err:
-            logger.warning(f"llama-3.1-8b-instant failed: {groq_err}. Falling back to llama3-8b-8192")
+        except Exception as primary_err:
+            logger.warning(f"{PRIMARY_MODEL} failed: {primary_err}. Falling back to {FALLBACK_MODEL}")
             completion = client.chat.completions.create(
-                model="llama3-8b-8192",
+                model=FALLBACK_MODEL,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_message}
@@ -131,7 +158,7 @@ def generate_answer(query: str, context_str: str, answer_style: str = "default")
         }
 
     except Exception as e:
-        logger.error(f"Failed to generate answer from Groq API: {e}")
+        logger.error(f"Failed to generate answer from OpenRouter API: {e}")
         # Graceful fallback dictionary in case of timeouts, rate limits, or auth failures
         return {
             "answer": f"An error occurred while communicating with the LLM API: {e}",
@@ -158,35 +185,33 @@ def decompose_query(query: str) -> List[str]:
     )
     
     try:
-        client = Groq()
+        client = _get_client()
         try:
             completion = client.chat.completions.create(
-                model="llama-3.1-8b-instant",
+                model=PRIMARY_MODEL,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": query}
                 ],
                 temperature=0.0,
                 max_tokens=256,
-                response_format={"type": "json_object"}
             )
-        except Exception as groq_err:
-            logger.warning(f"llama-3.1-8b-instant failed: {groq_err}. Falling back to llama3-8b-8192")
+        except Exception as primary_err:
+            logger.warning(f"{PRIMARY_MODEL} failed: {primary_err}. Falling back to {FALLBACK_MODEL}")
             completion = client.chat.completions.create(
-                model="llama3-8b-8192",
+                model=FALLBACK_MODEL,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": query}
                 ],
                 temperature=0.0,
                 max_tokens=256,
-                response_format={"type": "json_object"}
             )
         
         response_text = completion.choices[0].message.content
-        # Sometimes Groq with JSON format wrapper puts it in a key, try to extract array
+        # Try to extract JSON array from the response
         try:
-            parsed = json.loads(response_text)
+            parsed = _extract_json(response_text)
             if isinstance(parsed, list):
                 return parsed
             elif isinstance(parsed, dict):
@@ -207,7 +232,7 @@ def generate_document_summary(text_content: str) -> Dict[str, Any]:
     """
     Generates a high-level summary, key highlights, and main entities from the document text.
     """
-    logger.info("Generating document summary via Groq...")
+    logger.info("Generating document summary via OpenRouter...")
     
     system_prompt = (
         "You are an expert document summarizer. Given the text from a document, "
@@ -220,40 +245,36 @@ def generate_document_summary(text_content: str) -> Dict[str, Any]:
     )
     
     try:
-        client = Groq()
+        client = _get_client()
         try:
             completion = client.chat.completions.create(
-                model="llama-3.1-8b-instant",
+                model=PRIMARY_MODEL,
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    # Truncate to first ~5,000 characters to prevent Groq Free Tier 6k TPM limits
-                    {"role": "user", "content": text_content[:5000]}
+                    {"role": "user", "content": text_content[:15000]}
                 ],
                 temperature=0.1,
                 max_tokens=512,
-                response_format={"type": "json_object"}
             )
-        except Exception as groq_err:
-            logger.warning(f"llama-3.1-8b-instant failed: {groq_err}. Falling back to llama3-8b-8192")
+        except Exception as primary_err:
+            logger.warning(f"{PRIMARY_MODEL} failed: {primary_err}. Falling back to {FALLBACK_MODEL}")
             completion = client.chat.completions.create(
-                model="llama3-8b-8192",
+                model=FALLBACK_MODEL,
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    # Truncate to first ~5,000 characters to prevent Groq Free Tier 6k TPM limits
-                    {"role": "user", "content": text_content[:5000]}
+                    {"role": "user", "content": text_content[:15000]}
                 ],
                 temperature=0.1,
                 max_tokens=512,
-                response_format={"type": "json_object"}
             )
         
         response_text = completion.choices[0].message.content
-        return json.loads(response_text)
+        return _extract_json(response_text)
         
     except Exception as e:
-        logger.error(f"Failed to generate summary from Groq API: {e}")
+        logger.error(f"Failed to generate summary from OpenRouter API: {e}")
         return {
-            "summary": f"Summary generation failed. Groq API Error: {e}",
+            "summary": f"Summary generation failed. OpenRouter API Error: {e}",
             "highlights": ["Could not generate highlights"],
             "entities": ["Unknown"],
             "category": "Unclassified"
