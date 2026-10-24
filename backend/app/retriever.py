@@ -5,13 +5,13 @@ Implements a two-tiered retrieval, graph-expansion, and reranking pipeline for t
 Graph-Augmented RAG system.
 """
 
-import logging
-from typing import Any, List, Dict, Optional
-import networkx as nx
-from sentence_transformers import CrossEncoder
+from __future__ import annotations
 
-# Included as requested by constraints
-from app.data_models import BaseDocumentElement, TextElement, TableElement, ImageElement 
+import logging
+from typing import Any, List, Dict, Optional, TYPE_CHECKING
+import networkx as nx
+if TYPE_CHECKING:
+    from sentence_transformers import CrossEncoder
 from app.model_config import get_embedding_model
 
 logger = logging.getLogger(__name__)
@@ -31,6 +31,7 @@ def get_reranker_model() -> CrossEncoder:
     """
     global _reranker_model
     if _reranker_model is None:
+        from sentence_transformers import CrossEncoder
         # Instantiate a lightweight cross-encoder optimized for CPU
         _reranker_model = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2', device='cpu')
     return _reranker_model
@@ -49,7 +50,7 @@ def retrieve_context(query: str, collection: Any, graph: nx.DiGraph, doc_id: str
         top_k (int): The number of top semantic neighbors to retrieve initially.
 
     Returns:
-        str: A formatted string compiling the top 5 reranked pieces of context.
+        str: Up to 8 reranked context blocks, restricted to doc_id when supplied.
     """
     logger.info(f"Starting retrieval for query: '{query}'")
 
@@ -80,6 +81,12 @@ def retrieve_context(query: str, collection: Any, graph: nx.DiGraph, doc_id: str
         logger.error(f"Failed to query ChromaDB collection: {e}")
         return ""
 
+    def in_scope(node_id):
+        return graph.has_node(node_id) and (
+            not doc_id or doc_id == "global" or graph.nodes[node_id].get("doc_id") == doc_id
+        )
+
+    seed_ids = [node_id for node_id in seed_ids if in_scope(node_id)]
     if not seed_ids:
         logger.warning("No seed IDs returned from the vector search.")
         return ""
@@ -100,7 +107,7 @@ def retrieve_context(query: str, collection: Any, graph: nx.DiGraph, doc_id: str
                 if graph.has_node(n_id):
                     preds = set(graph.predecessors(n_id))
                     succs = set(graph.successors(n_id))
-                    neighbors = preds | succs
+                    neighbors = {node_id for node_id in preds | succs if in_scope(node_id)}
                     new_nodes = neighbors - aggregated_ids
                     next_frontier.update(new_nodes)
                     aggregated_ids.update(neighbors)
@@ -117,7 +124,7 @@ def retrieve_context(query: str, collection: Any, graph: nx.DiGraph, doc_id: str
     candidates_data: List[Dict[str, Any]] = []
     
     # Retrieve contents for all aggregated nodes directly from node attributes
-    for n_id in aggregated_ids:
+    for n_id in sorted(aggregated_ids):
         try:
             if graph.has_node(n_id):
                 node_data = graph.nodes[n_id]

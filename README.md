@@ -1,124 +1,77 @@
-# Graph-Augmented RAG
+# GraphRAG
 
-A powerful, multimodal Graph-Augmented Retrieval-Augmented Generation (RAG) system. This application parses complex documents (including images and tables), builds an interactive knowledge graph, and uses a Vision-Language Model (Groq) to provide highly accurate, visually-cited answers.
+A document question-answering prototype that combines vector retrieval with a
+NetworkX graph of text, tables, and images. A React interface lets you upload
+PDF/DOCX files, explore document relationships, and ask questions with citations.
 
-## Architecture
-- **Backend:** Python (FastAPI), PyTorch, ChromaDB, IBM Docling, NetworkX
-- **Frontend:** React, Vite, ReactFlow
-- **Database:** MongoDB
-- **LLM:** Groq API
+## How retrieval works
 
----
+Docling extracts document elements. Sentence Transformers embeds them into ChromaDB.
+The retriever expands vector-search seeds by two graph hops, reranks candidates
+with a cross-encoder, and returns up to eight context blocks. Groq generates an
+answer using those blocks. Image descriptions optionally use MLX on Apple Silicon.
 
-## 🚀 Setup Guide (For Local Development)
+Document-specific retrieval filters both vector seeds and graph neighbors by
+`doc_id`. Global mode intentionally permits cross-document retrieval. This is
+retrieval scoping, not user authorization: the API still uses shared in-process
+state and needs an access-control review before multi-user deployment.
 
-Because this application runs heavy Machine Learning embedding models (PyTorch, SentenceTransformers), it requires at least **2GB to 4GB of RAM** to run smoothly. It is highly recommended to run the backend locally rather than on free-tier cloud providers (which typically limit RAM to 512MB).
+Image-analysis failures return `Image description unavailable.` rather than
+inventing chart values. Citation rendering is implemented; answer correctness
+and citation support have not been measured on a representative benchmark.
 
-### 1. Prerequisites
-You will need the following installed on your machine:
-- **Python 3.9+**
-- **Node.js 18+**
-- **Git**
+## Run locally
 
-You will also need two API keys:
-1. **Groq API Key:** For the lightning-fast LLM inference.
-2. **MongoDB URI:** For storing the GraphRAG document state and chat history.
+The full backend needs Python, Node.js, local model memory, and a MongoDB instance.
+The current requirements file is an environment snapshot, including Apple-specific
+packages; it is not a verified cross-platform lockfile.
 
-### 2. Backend Setup
-The backend handles the ML inference, document parsing, and database logic.
+```sh
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r backend/requirements.txt
+```
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/ryanfer123/GraphRAG.git
-   cd GraphRAG
-   ```
+Set `GROQ_API_KEY` and `MONGO_URI` in your local environment or an ignored `.env`.
+Run from `backend` so the existing `app` imports resolve:
 
-2. **Create and activate a virtual environment:**
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
-   ```
+```sh
+cd backend
+python -m uvicorn app.api:app --host 127.0.0.1 --port 8000 --reload
+```
 
-3. **Install the required Python dependencies:**
-   *Note: This will download PyTorch and may take a few minutes depending on your internet connection.*
-   ```bash
-   pip install -r requirements.txt
-   ```
+In another terminal:
 
-4. **Configure your Environment Variables:**
-   Create a new file named `.env` in the root directory of the project and add your keys:
-   ```env
-   GROQ_API_KEY=your_groq_api_key_here
-   MONGO_URI=your_mongodb_connection_string_here
-   ```
+```sh
+cd frontend
+npm ci
+npm run dev
+```
 
-5. **Start the Python Backend:**
-   ```bash
-   python -m uvicorn api:app --host 127.0.0.1 --port 8000 --reload --env-file .env
-   ```
-   *The API will now be running at `http://127.0.0.1:8000`.*
+Open the URL Vite prints. The Vite configuration proxies `/api` to the backend.
+Model downloads and external API calls are part of the full workflow.
 
----
+## Lightweight regression tests
 
-### 3. Frontend Setup
-The frontend is a Vite-powered React application with interactive ReactFlow graphs.
+These tests exercise production retrieval and image-error handling using controlled
+model/database doubles. They do not download weights or call external services.
 
-1. **Open a new terminal tab** and navigate to the frontend directory:
-   ```bash
-   cd Mutli-Modal-Context-Aware-RAG/frontend
-   ```
+```sh
+python -m pip install pytest networkx python-dotenv
+PYTHONPATH=backend python -m pytest backend/tests/unit -q
+```
 
-2. **Install Node dependencies:**
-   ```bash
-   npm install
-   ```
+The GitHub workflow runs this suite independently of the heavyweight model stack.
+The older scripts under `backend/tests` require model weights or services and are
+not included in the lightweight suite. Unit passes do not establish end-to-end
+PDF parsing, model quality, or live database/API integration.
 
-3. **Start the development server:**
-   ```bash
-   npm run dev
-   ```
+## Useful next contributions
 
-4. **Access the Application:**
-   Open your browser and navigate to the URL provided by Vite (usually `http://localhost:5180`). 
+- Add a licensed document/query benchmark with relevance labels and retrieval metrics.
+- Isolate state and authorization per user/session.
+- Replace the broad dependency snapshot with tested platform-specific installation files.
+- Verify citations against retrieved evidence and expose unsupported answers.
 
----
-
-## 🛠️ Usage
-1. **Sign Up / Login:** Create an account on the local dashboard.
-2. **Upload a Document:** Navigate to the Dashboard and upload a PDF or DOCX. The backend will parse the text, tables, and images, embed them into ChromaDB, and build a NetworkX knowledge graph.
-3. **Explore the Graph:** Click on the generated nodes in the right-hand panel to see semantic relationships and entity extraction.
-4. **Chat:** Ask questions about the document. The system will retrieve the most relevant semantic chunks and graph edges, and the LLM will generate an answer with inline citations (e.g., `(Fig. 1)` or `(Page 3)`).
-
----
-
-## 🌟 Hackathon Stretch Goals Achieved
-
-This project successfully implements all the bonus features requested in the hackathon problem statement:
-
-1. **Agentic Reasoning & Adversarial Robustness:**
-   - **Query Decomposition:** Complex, multi-hop user questions (e.g. "Compare revenue in Q1 and Q2") are automatically broken down into atomic sub-queries and routed to Groq (`llama-3.3-70b-versatile`) for highly targeted semantic retrieval.
-   - **Robust System Prompt:** The LLM is explicitly instructed to avoid hallucinations and confidently state when a question is unanswerable based on the provided document context, successfully handling "trick" questions.
-
-2. **Cross-Document QA (Global Knowledge Base):**
-   - The system maintains a unified ChromaDB collection (`global_collection`) and a global NetworkX graph (`global_graph`).
-   - The UI's Sidebar features a "Global Knowledge Base" mode. Selecting it allows users to search across *all* uploaded documents simultaneously!
-
-3. **Explainability Mode:**
-   - The LLM generates inline citations for every factual claim.
-   - The ChatPanel includes a collapsible "Sources Used" accordion. Clicking this expands a list of `SourceCard` components displaying the exact snippet, type (paragraph/table/image), and page number where the information was sourced.
-
-4. **Real-Time Ingestion (Streaming):**
-   - The `/api/upload` endpoint defers the heavy ingestion workload (MLX embedding and IBM Docling layout extraction) to FastAPI `BackgroundTasks`.
-   - A Server-Sent Events (SSE) `/api/upload/stream/{doc_id}` endpoint broadcasts ingestion progress to the frontend.
-   - `UploadCard.jsx` listens to the SSE stream and renders an animated progress bar, giving the user real-time feedback on extraction, graph building, and summarization phases.
-
----
-
-## ✨ Latest Polish & Updates
-- **Document-Specific RAG Filtering:** Chat history and retrieval now correctly filter context by `doc_id` to prevent cross-document leakage when analyzing a single document.
-- **Graph Explorer Overhaul:** Replaced the chaotic BFS DAG layout with a **Sequential Wrapping Grid** layout, perfectly mapping the native document reading order and preventing disconnected sections from rendering as separate graphs.
-- **Fast Document Parsing:** Migrated from `unstructured` to IBM Docling for 5-10x faster document ingestion, with excellent support for PDFs, DOCXs, PPTXs, and more.
-- **UI & UX Refinements:**
-  - Added beautiful center-aligned empty states for the Chat History and Graph Explorer when no documents are active.
-  - Implemented an interactive "Try Again" error handling flow for failed document uploads.
-  - Aligned Dropdown components and streamlined the "New Chat" button styling for a premium aesthetic.
+Small changes should include a reproducible failure, a regression test, and explicit
+limits on what was verified. Preserve the existing API and document-element schema.
